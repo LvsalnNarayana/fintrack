@@ -29,6 +29,10 @@ export const TransactionsPage: React.FC = () => {
   const [selectedType, setSelectedType] = useState<TransactionType | 'ALL'>('ALL');
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [minAmount, setMinAmount] = useState('');
+  const [maxAmount, setMaxAmount] = useState('');
   const [page, setPage] = useState(1);
 
   // Dialog & Drawer state
@@ -49,6 +53,10 @@ export const TransactionsPage: React.FC = () => {
     transactionType: selectedType === 'ALL' ? undefined : selectedType,
     accountId: selectedAccountId || undefined,
     categoryId: selectedCategoryId || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+    minAmount: minAmount ? Number(minAmount) : undefined,
+    maxAmount: maxAmount ? Number(maxAmount) : undefined,
     page,
     pageSize: 30,
   });
@@ -89,6 +97,26 @@ export const TransactionsPage: React.FC = () => {
         selectedCategoryId={selectedCategoryId}
         onCategoryChange={(cat) => {
           setSelectedCategoryId(cat);
+          setPage(1);
+        }}
+        startDate={startDate}
+        endDate={endDate}
+        onStartDateChange={(val) => {
+          setStartDate(val);
+          setPage(1);
+        }}
+        onEndDateChange={(val) => {
+          setEndDate(val);
+          setPage(1);
+        }}
+        minAmount={minAmount}
+        maxAmount={maxAmount}
+        onMinAmountChange={(val) => {
+          setMinAmount(val);
+          setPage(1);
+        }}
+        onMaxAmountChange={(val) => {
+          setMaxAmount(val);
           setPage(1);
         }}
       />

@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
+import { categoryService } from '@/features/categories/services/categoryService';
 import {
   Transaction,
   TransactionFilterParams,
@@ -156,6 +157,14 @@ export const transactionService = {
         filtered = filtered.filter((t) => t.transactionType === params.transactionType);
       }
 
+      if (params.minAmount !== undefined) {
+        filtered = filtered.filter((t) => Math.abs(t.amount) >= params.minAmount!);
+      }
+
+      if (params.maxAmount !== undefined) {
+        filtered = filtered.filter((t) => Math.abs(t.amount) <= params.maxAmount!);
+      }
+
       if (params.startDate) {
         filtered = filtered.filter((t) => t.date >= params.startDate!);
       }
@@ -204,6 +213,14 @@ export const transactionService = {
 
     if (params.transactionType) {
       query = query.eq('transaction_type', params.transactionType);
+    }
+
+    if (params.minAmount !== undefined) {
+      query = query.gte('amount', params.minAmount);
+    }
+
+    if (params.maxAmount !== undefined) {
+      query = query.lte('amount', params.maxAmount);
     }
 
     if (params.startDate) {
@@ -260,6 +277,16 @@ export const transactionService = {
     const withdrawal = dto.transactionType === 'EXPENSE' || dto.transactionType === 'TRANSFER' ? dto.amount : 0;
 
     if (!isSupabaseConfigured()) {
+      let categoryName: string | undefined;
+      let categoryColor: string | undefined;
+
+      if (dto.categoryId) {
+        const categories = await categoryService.getCategories(true);
+        const match = categories.find((cat) => cat.id === dto.categoryId);
+        categoryName = match?.name;
+        categoryColor = match?.color;
+      }
+
       const newTx: Transaction = {
         id: `tx-${Date.now()}`,
         userId: '00000000-0000-0000-0000-000000000001',
@@ -267,6 +294,8 @@ export const transactionService = {
         accountName: 'Demo Account',
         bankName: 'Demo Bank',
         categoryId: dto.categoryId || null,
+        categoryName,
+        categoryColor,
         importBatchId: null,
         date: dto.date,
         description: dto.description,
@@ -362,7 +391,18 @@ export const transactionService = {
       const tx = mockTransactions.find((t) => t.id === id);
       if (tx) {
         if (dto.accountId) tx.accountId = dto.accountId;
-        if (dto.categoryId !== undefined) tx.categoryId = dto.categoryId;
+        if (dto.categoryId !== undefined) {
+          tx.categoryId = dto.categoryId;
+          if (dto.categoryId) {
+            const categories = await categoryService.getCategories(true);
+            const match = categories.find((cat) => cat.id === dto.categoryId);
+            tx.categoryName = match?.name;
+            tx.categoryColor = match?.color;
+          } else {
+            tx.categoryName = undefined;
+            tx.categoryColor = undefined;
+          }
+        }
         if (dto.date) tx.date = dto.date;
         if (dto.description) tx.description = dto.description;
         if (dto.amount !== undefined) {

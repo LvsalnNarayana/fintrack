@@ -3,10 +3,55 @@ import {
   CategorySpendingItem,
   MonthlyCashFlowItem,
   TopMerchantItem,
+  TransactionInsightItem,
 } from '@/types/domain.types';
 import { transactionService } from '@/features/transactions/services/transactionService';
 
 export const analyticsService = {
+  async getTransactionSearchInsights(
+    searchTerm: string,
+    startDate: string,
+    endDate: string,
+    accountId?: string,
+    categoryId?: string,
+    transactionType?: 'INCOME' | 'EXPENSE' | 'TRANSFER'
+  ): Promise<TransactionInsightItem[]> {
+    if (!searchTerm.trim()) return [];
+
+    const res = await transactionService.getTransactions({
+      search: searchTerm,
+      startDate,
+      endDate,
+      accountId,
+      categoryId,
+      transactionType,
+      pageSize: 500,
+    });
+
+    const map = new Map<string, { totalAmount: number; transactionCount: number }>();
+    const lowerQuery = searchTerm.trim().toLowerCase();
+
+    for (const tx of res.data) {
+      const haystack = [tx.description, tx.categoryName, tx.notes].filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(lowerQuery)) continue;
+
+      const key = tx.description.trim() || tx.categoryName || 'Uncategorized';
+      const current = map.get(key) || { totalAmount: 0, transactionCount: 0 };
+      current.totalAmount += tx.transactionType === 'EXPENSE' ? Math.abs(tx.amount) : tx.amount;
+      current.transactionCount += 1;
+      map.set(key, current);
+    }
+
+    return Array.from(map.entries())
+      .map(([label, value]) => ({
+        label,
+        totalAmount: value.totalAmount,
+        transactionCount: value.transactionCount,
+        averageAmount: value.transactionCount > 0 ? value.totalAmount / value.transactionCount : 0,
+        periodLabel: `${startDate} to ${endDate}`,
+      }))
+      .sort((a, b) => b.totalAmount - a.totalAmount);
+  },
   async getCategorySpending(startDate: string, endDate: string, accountId?: string): Promise<CategorySpendingItem[]> {
     if (!isSupabaseConfigured()) {
       const res = await transactionService.getTransactions({

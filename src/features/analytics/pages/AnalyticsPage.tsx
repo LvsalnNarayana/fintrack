@@ -18,6 +18,7 @@ import {
   TableHead,
   TableRow,
   Paper,
+  TextField,
 } from '@mui/material';
 import {
   ResponsiveContainer,
@@ -44,6 +45,8 @@ export const AnalyticsPage: React.FC = () => {
   const [tabIndex, setTabIndex] = useState(0);
   const [period, setPeriod] = useState<PeriodType>('this_month');
   const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedType, setSelectedType] = useState<'ALL' | 'INCOME' | 'EXPENSE' | 'TRANSFER'>('ALL');
 
   const { accounts } = useAccounts(true);
   const bounds = getPeriodBounds(period);
@@ -55,7 +58,24 @@ export const AnalyticsPage: React.FC = () => {
     isLoadingCashFlow,
     topMerchants,
     isLoadingMerchants,
-  } = useAnalytics(bounds.startDate, bounds.endDate, 2026, selectedAccountId || undefined);
+    searchInsights,
+    isLoadingSearchInsights,
+  } = useAnalytics(
+    bounds.startDate,
+    bounds.endDate,
+    2026,
+    selectedAccountId || undefined,
+    searchTerm || undefined
+  );
+
+  const summaryTotals = searchInsights.reduce(
+    (acc, item) => {
+      acc.total += item.totalAmount;
+      acc.count += item.transactionCount;
+      return acc;
+    },
+    { total: 0, count: 0 }
+  );
 
   return (
     <Box>
@@ -97,6 +117,30 @@ export const AnalyticsPage: React.FC = () => {
         </FormControl>
       </Stack>
 
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
+        <TextField
+          label="Search description or merchant"
+          size="small"
+          fullWidth
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>Type</InputLabel>
+          <Select
+            value={selectedType}
+            label="Type"
+            onChange={(e) => setSelectedType(e.target.value as 'ALL' | 'INCOME' | 'EXPENSE' | 'TRANSFER')}
+          >
+            <MenuItem value="ALL">All</MenuItem>
+            <MenuItem value="EXPENSE">Expense</MenuItem>
+            <MenuItem value="INCOME">Income</MenuItem>
+            <MenuItem value="TRANSFER">Transfer</MenuItem>
+          </Select>
+        </FormControl>
+      </Stack>
+
       {/* Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs
@@ -108,6 +152,7 @@ export const AnalyticsPage: React.FC = () => {
           <Tab label="Monthly Cash Flow" />
           <Tab label="Category Spending" />
           <Tab label="Top Merchants" />
+          <Tab label="Search Totals" />
         </Tabs>
       </Box>
 
@@ -305,6 +350,92 @@ export const AnalyticsPage: React.FC = () => {
                   </TableBody>
                 </Table>
               </TableContainer>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tab 3: Search Totals */}
+      {tabIndex === 3 && (
+        <Card>
+          <CardContent sx={{ p: 3 }}>
+            <Typography variant="h6" fontWeight={600} gutterBottom>
+              Search / Merchant Totals
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Total spending for a description, merchant, or transaction type across the selected period.
+            </Typography>
+
+            {!searchTerm ? (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 5, textAlign: 'center' }}>
+                Enter a merchant or description to calculate totals and compare matching transactions.
+              </Typography>
+            ) : isLoadingSearchInsights ? (
+              <LoadingSkeleton type="table" count={4} />
+            ) : (
+              <>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
+                  <Card variant="outlined" sx={{ flex: 1, p: 2 }}>
+                    <Typography variant="caption" color="text.secondary">Total spend</Typography>
+                    <Typography variant="h5" fontWeight={700}>{formatCurrency(summaryTotals.total)}</Typography>
+                  </Card>
+                  <Card variant="outlined" sx={{ flex: 1, p: 2 }}>
+                    <Typography variant="caption" color="text.secondary">Transactions</Typography>
+                    <Typography variant="h5" fontWeight={700}>{summaryTotals.count}</Typography>
+                  </Card>
+                  <Card variant="outlined" sx={{ flex: 1, p: 2 }}>
+                    <Typography variant="caption" color="text.secondary">Average</Typography>
+                    <Typography variant="h5" fontWeight={700}>
+                      {summaryTotals.count > 0 ? formatCurrency(summaryTotals.total / summaryTotals.count) : formatCurrency(0)}
+                    </Typography>
+                  </Card>
+                </Stack>
+
+                {searchInsights.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 5, textAlign: 'center' }}>
+                    No matching entries were found for this search in the selected period.
+                  </Typography>
+                ) : (
+                  <>
+                    <Box sx={{ width: '100%', height: 280, mb: 3 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={searchInsights.slice(0, 8)} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+                          <YAxis tickLine={false} axisLine={false} tickFormatter={(val) => `₹${val >= 1000 ? `${val / 1000}k` : val}`} />
+                          <Tooltip formatter={(value: number) => [formatCurrency(value), 'Total']} contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                          <Bar dataKey="totalAmount" name="Total Spend" fill="#f97316" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </Box>
+
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Match</TableCell>
+                            <TableCell align="right">Txns</TableCell>
+                            <TableCell align="right">Total</TableCell>
+                            <TableCell align="right">Average</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {searchInsights.map((item) => (
+                            <TableRow key={item.label}>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight={600}>{item.label}</Typography>
+                              </TableCell>
+                              <TableCell align="right">{item.transactionCount}</TableCell>
+                              <TableCell align="right">{formatCurrency(item.totalAmount)}</TableCell>
+                              <TableCell align="right">{formatCurrency(item.averageAmount)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

@@ -24,6 +24,14 @@ interface TransactionFilterBarProps {
   onAccountChange: (accountId: string) => void;
   selectedCategoryId: string;
   onCategoryChange: (categoryId: string) => void;
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (val: string) => void;
+  onEndDateChange: (val: string) => void;
+  minAmount: string;
+  maxAmount: string;
+  onMinAmountChange: (val: string) => void;
+  onMaxAmountChange: (val: string) => void;
 }
 
 export const TransactionFilterBar: React.FC<TransactionFilterBarProps> = ({
@@ -35,6 +43,14 @@ export const TransactionFilterBar: React.FC<TransactionFilterBarProps> = ({
   onAccountChange,
   selectedCategoryId,
   onCategoryChange,
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
+  minAmount,
+  maxAmount,
+  onMinAmountChange,
+  onMaxAmountChange,
 }) => {
   const { accounts } = useAccounts(true);
   const { categories } = useCategories();
@@ -90,6 +106,46 @@ export const TransactionFilterBar: React.FC<TransactionFilterBarProps> = ({
               ))}
             </Select>
           </FormControl>
+        </Stack>
+
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems="center">
+          <TextField
+            label="From"
+            type="date"
+            size="small"
+            value={startDate}
+            onChange={(e) => onStartDateChange(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: { xs: '100%', md: 170 } }}
+          />
+
+          <TextField
+            label="To"
+            type="date"
+            size="small"
+            value={endDate}
+            onChange={(e) => onEndDateChange(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: { xs: '100%', md: 170 } }}
+          />
+
+          <TextField
+            label="Min amount"
+            type="number"
+            size="small"
+            value={minAmount}
+            onChange={(e) => onMinAmountChange(e.target.value)}
+            sx={{ minWidth: { xs: '100%', md: 140 } }}
+          />
+
+          <TextField
+            label="Max amount"
+            type="number"
+            size="small"
+            value={maxAmount}
+            onChange={(e) => onMaxAmountChange(e.target.value)}
+            sx={{ minWidth: { xs: '100%', md: 140 } }}
+          />
         </Stack>
 
         {/* Row 2: Quick Filter Chips */}

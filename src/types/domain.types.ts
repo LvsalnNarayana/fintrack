@@ -154,6 +154,14 @@ export interface TopMerchantItem {
   transactionCount: number;
 }
 
+export interface TransactionInsightItem {
+  label: string;
+  totalAmount: number;
+  transactionCount: number;
+  averageAmount: number;
+  periodLabel: string;
+}
+
 export interface CreateTransactionDTO {
   accountId: string;
   categoryId?: string | null;

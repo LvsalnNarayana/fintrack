@@ -40,6 +40,14 @@ export const useTransactions = (params: TransactionFilterParams = {}) => {
     },
   });
 
+  const deleteAllMutation = useMutation({
+    mutationFn: () => transactionService.deleteAllTransactions(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
+    },
+  });
+
   return {
     ...query,
     transactions: query.data?.data || [],
@@ -48,6 +56,7 @@ export const useTransactions = (params: TransactionFilterParams = {}) => {
     createTransaction: createMutation.mutateAsync,
     updateTransaction: updateMutation.mutateAsync,
     deleteTransaction: deleteMutation.mutateAsync,
+    deleteAllTransactions: deleteAllMutation.mutateAsync,
     isMutating:
       createMutation.isPending || updateMutation.isPending || deleteMutation.isPending,
   };

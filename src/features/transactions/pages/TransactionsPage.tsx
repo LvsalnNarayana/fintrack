@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -6,8 +6,17 @@ import {
   Stack,
   useMediaQuery,
   useTheme,
+  IconButton,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Alert,
+  CircularProgress,
 } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
+import { Add as AddIcon, DeleteOutline as DeleteOutlineIcon, Close as CloseIcon } from '@mui/icons-material';
 import { PageHeader } from '@/components/common/PageHeader';
 import { TransactionFilterBar } from '../components/TransactionFilterBar';
 import { TransactionCard } from '../components/TransactionCard';
@@ -33,11 +42,23 @@ export const TransactionsPage: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
+  const [sortBy] = useState<'date'>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
 
   // Dialog & Drawer state
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteIds, setDeleteIds] = useState<string[]>([]);
+  const [deleteAllRequested, setDeleteAllRequested] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const deleteResolver = useRef<((deleted: boolean) => void) | null>(null);
 
   const {
     transactions,
@@ -47,7 +68,9 @@ export const TransactionsPage: React.FC = () => {
     isError,
     refetch,
     createTransaction,
+    updateTransaction,
     deleteTransaction,
+    deleteAllTransactions,
   } = useTransactions({
     search: search || undefined,
     transactionType: selectedType === 'ALL' ? undefined : selectedType,
@@ -57,9 +80,76 @@ export const TransactionsPage: React.FC = () => {
     endDate: endDate || undefined,
     minAmount: minAmount ? Number(minAmount) : undefined,
     maxAmount: maxAmount ? Number(maxAmount) : undefined,
+    sortBy,
+    sortDirection,
     page,
     pageSize: 30,
   });
+
+  const allSelected = transactions.length > 0 && transactions.every((tx) => selectedIds.has(tx.id));
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllSelected = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(transactions.map((tx) => tx.id)));
+  };
+
+  const closeSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const requestDelete = (ids: string[], deleteAll = false): Promise<boolean> => {
+    return new Promise((resolve) => {
+      deleteResolver.current = resolve;
+      setDeleteIds(ids);
+      setDeleteAllRequested(deleteAll);
+      setDeletePassword('');
+      setDeleteError(null);
+      setDeleteDialogOpen(true);
+    });
+  };
+
+  const cancelDelete = () => {
+    setDeleteDialogOpen(false);
+    setDeletePassword('');
+    setDeleteError(null);
+    deleteResolver.current?.(false);
+    deleteResolver.current = null;
+  };
+
+  const confirmDelete = async () => {
+    const requiredPassword = import.meta.env.VITE_SETTINGS_PASSWORD || 'fintrack123';
+    if (deletePassword !== requiredPassword) {
+      setDeleteError('Incorrect password.');
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      if (deleteAllRequested) {
+        await deleteAllTransactions();
+      } else {
+        await Promise.all(deleteIds.map((id) => deleteTransaction(id)));
+      }
+      setDeleteDialogOpen(false);
+      setDeletePassword('');
+      deleteResolver.current?.(true);
+      deleteResolver.current = null;
+      closeSelectionMode();
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete transaction(s)');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <Box>
@@ -67,14 +157,50 @@ export const TransactionsPage: React.FC = () => {
         title="Transactions"
         subtitle={`Showing ${transactions.length} of ${total} records`}
         action={
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setIsFormOpen(true)}
-            sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
-          >
-            Add Transaction
-          </Button>
+          <Stack direction="row" spacing={1} justifyContent={{ xs: 'flex-end', sm: 'initial' }}>
+            {selectionMode ? (
+              <>
+                <Button
+                  variant="contained"
+                  color="error"
+                  startIcon={<DeleteOutlineIcon />}
+                  disabled={selectedIds.size === 0 || deleting}
+                  onClick={() => requestDelete([...selectedIds])}
+                >
+                  Delete{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  disabled={deleting}
+                  onClick={() => requestDelete([], true)}
+                >
+                  Delete all
+                </Button>
+                <Tooltip title="Cancel selection">
+                  <IconButton onClick={closeSelectionMode} disabled={deleting} aria-label="Cancel selection">
+                    <CloseIcon />
+                  </IconButton>
+                </Tooltip>
+              </>
+            ) : (
+              <>
+                <Tooltip title="Select transactions to delete">
+                  <IconButton onClick={() => setSelectionMode(true)} aria-label="Select transactions to delete">
+                    <DeleteOutlineIcon />
+                  </IconButton>
+                </Tooltip>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => setIsFormOpen(true)}
+                  sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+                >
+                  Add Transaction
+                </Button>
+              </>
+            )}
+          </Stack>
         }
       />
 
@@ -119,6 +245,11 @@ export const TransactionsPage: React.FC = () => {
           setMaxAmount(val);
           setPage(1);
         }}
+        sortDirection={sortDirection}
+        onSortDirectionChange={() => {
+          setSortDirection((current) => current === 'asc' ? 'desc' : 'asc');
+          setPage(1);
+        }}
       />
 
       {isLoading && (
@@ -155,6 +286,9 @@ export const TransactionsPage: React.FC = () => {
                   key={tx.id}
                   transaction={tx}
                   onClick={() => setSelectedTx(tx)}
+                  selectionMode={selectionMode}
+                  selected={selectedIds.has(tx.id)}
+                  onToggleSelected={() => toggleSelected(tx.id)}
                 />
               ))}
             </Box>
@@ -162,6 +296,11 @@ export const TransactionsPage: React.FC = () => {
             <TransactionTable
               transactions={transactions}
               onRowClick={(tx) => setSelectedTx(tx)}
+              selectionMode={selectionMode}
+              selectedIds={selectedIds}
+              allSelected={allSelected}
+              onToggleAll={toggleAllSelected}
+              onToggleSelected={toggleSelected}
             />
           )}
 
@@ -182,8 +321,13 @@ export const TransactionsPage: React.FC = () => {
       {/* Add Transaction Dialog */}
       <TransactionFormDialog
         open={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
+        onClose={() => {
+          setIsFormOpen(false);
+          setEditingTx(null);
+        }}
         onSubmit={createTransaction}
+        onUpdate={editingTx ? (dto) => updateTransaction({ id: editingTx.id, dto }) : undefined}
+        initialTransaction={editingTx}
       />
 
       {/* Transaction Detail Drawer */}
@@ -191,8 +335,51 @@ export const TransactionsPage: React.FC = () => {
         transaction={selectedTx}
         open={Boolean(selectedTx)}
         onClose={() => setSelectedTx(null)}
-        onDelete={deleteTransaction}
+        onEdit={(transaction) => {
+          setSelectedTx(null);
+          setEditingTx(transaction);
+          setIsFormOpen(true);
+        }}
+        onDelete={(id) => requestDelete([id])}
       />
+
+      <Dialog open={deleteDialogOpen} onClose={cancelDelete} maxWidth="xs" fullWidth>
+        <DialogTitle>{deleteAllRequested ? 'Delete all transactions?' : 'Confirm deletion'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Alert severity="warning">
+              {deleteAllRequested
+                ? 'This permanently removes every transaction in your account.'
+                : `This permanently removes ${deleteIds.length} selected transaction${deleteIds.length === 1 ? '' : 's'}.`}
+            </Alert>
+            {deleteError && <Alert severity="error">{deleteError}</Alert>}
+            <TextField
+              label="Settings password"
+              type="password"
+              value={deletePassword}
+              onChange={(event) => setDeletePassword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') confirmDelete();
+              }}
+              autoFocus
+              fullWidth
+              size="small"
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={cancelDelete} disabled={deleting}>Cancel</Button>
+          <Button
+            onClick={confirmDelete}
+            variant="contained"
+            color="error"
+            disabled={deleting || !deletePassword}
+            startIcon={deleting ? <CircularProgress size={18} color="inherit" /> : <DeleteOutlineIcon />}
+          >
+            Delete permanently
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

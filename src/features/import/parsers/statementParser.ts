@@ -89,15 +89,18 @@ export const transformRowsWithMapping = (
 const sanitizeDateString = (rawDate: string): string => {
   if (!rawDate) return new Date().toISOString().split('T')[0];
 
-  // Try standard YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) return rawDate;
+  // Keep the date portion from ISO date-time values while accepting the time for ordering.
+  if (/^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/.test(rawDate)) {
+    return rawDate;
+  }
 
   // Try DD/MM/YYYY or DD-MM-YYYY
   const parts = rawDate.split(/[/.-]/);
   if (parts.length === 3) {
     if (parts[0].length === 2 && parts[2].length === 4) {
       // DD/MM/YYYY
-      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      const datePart = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      return datePart;
     }
   }
 

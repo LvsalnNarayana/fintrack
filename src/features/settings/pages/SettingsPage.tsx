@@ -63,13 +63,13 @@ export const SettingsPage: React.FC = () => {
                 </Alert>
               ) : (
                 <Alert severity="warning">
-                  Running in <strong>Demo Preview Mode</strong>. To connect your hosted Supabase instance, update <code>.env</code> or your Vercel Project Settings with <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code>.
+                  Running in <strong>Demo Preview Mode</strong>. To connect your hosted Supabase instance, update <code>.env</code> or your Vercel Project Settings with <code>VITE_SUPABASE_URL</code> and either <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> or <code>VITE_SUPABASE_ANON_KEY</code>.
                 </Alert>
               )}
 
               <Box sx={{ bgcolor: '#f8fafc', p: 2, borderRadius: 2 }}>
                 <Typography variant="caption" color="text.secondary">Current User</Typography>
-                <Typography variant="body2" fontWeight={600}>{user?.email || 'Not authenticated'}</Typography>
+                <Typography variant="body2" fontWeight={600}>{user?.user_metadata?.username || 'Not authenticated'}</Typography>
               </Box>
 
               <Box>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Box, CircularProgress } from '@mui/material';
 import { AppShell } from '@/components/layout/AppShell';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage';
@@ -7,13 +8,32 @@ import { TransactionsPage } from '@/features/transactions/pages/TransactionsPage
 import { AnalyticsPage } from '@/features/analytics/pages/AnalyticsPage';
 import { ImportWizardPage } from '@/features/import/pages/ImportWizardPage';
 import { SettingsPage } from '@/features/settings/pages/SettingsPage';
+import { useAuth } from '@/features/auth/hooks/useAuth';
+
+const ProtectedAppShell: React.FC = () => {
+  const { isConfigured, user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (isConfigured && !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <AppShell />;
+};
 
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
 
-      <Route element={<AppShell />}>
+      <Route element={<ProtectedAppShell />}>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />

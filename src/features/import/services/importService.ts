@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
+import { supabase, isSupabaseConfigured, getAuthenticatedUserId } from '@/lib/supabase/client';
 import { ParsedStatementRow, ImportBatchResult } from '../types/import.types';
 import { ImportBatch } from '@/types/domain.types';
 import { transactionService } from '@/features/transactions/services/transactionService';
@@ -65,7 +65,8 @@ export const importService = {
 
     if (!isSupabaseConfigured()) {
       // Demo mode insertion
-      for (const row of importableRows) {
+      // Demo transactions are prepended, so insert in reverse to retain file order.
+      for (const row of [...importableRows].reverse()) {
         const type = row.deposit > 0 ? 'INCOME' : 'EXPENSE';
         const amount = row.deposit > 0 ? row.deposit : row.withdrawal;
 
@@ -87,10 +88,13 @@ export const importService = {
       };
     }
 
+    const userId = await getAuthenticatedUserId();
+
     // 1. Create import batch record
     const { data: batch, error: batchError } = await supabase
       .from('import_batches')
       .insert({
+        user_id: userId,
         account_id: accountId,
         source_file_name: fileName,
         source_file_hash: `hash-${Date.now()}`,
@@ -111,7 +115,7 @@ export const importService = {
       .order('priority', { ascending: true });
 
     // 3. Prepare transaction rows
-    const txRecords = importableRows.map((row) => {
+    const txRecords = importableRows.map((row, index) => {
       const type = row.deposit > 0 ? 'INCOME' : 'EXPENSE';
       const amount = row.deposit > 0 ? row.deposit : row.withdrawal;
 
@@ -128,10 +132,13 @@ export const importService = {
       }
 
       return {
+        user_id: userId,
         account_id: accountId,
         import_batch_id: batch.id,
+        import_row_number: index + 1,
         category_id: categoryId,
         date: row.date,
+        order_date: row.date.slice(0, 10),
         description: row.description,
         amount,
         transaction_type: type,

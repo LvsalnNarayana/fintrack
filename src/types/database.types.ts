@@ -13,6 +13,7 @@ export interface Database {
         Row: {
           id: string;
           email: string;
+          username: string;
           display_name: string | null;
           base_currency: string;
           date_format: string;
@@ -22,6 +23,7 @@ export interface Database {
         Insert: {
           id: string;
           email: string;
+          username: string;
           display_name?: string | null;
           base_currency?: string;
           date_format?: string;
@@ -31,6 +33,7 @@ export interface Database {
         Update: {
           id?: string;
           email?: string;
+          username?: string;
           display_name?: string | null;
           base_currency?: string;
           date_format?: string;
@@ -170,6 +173,9 @@ export interface Database {
           account_id: string;
           category_id: string | null;
           import_batch_id: string | null;
+          import_row_number: number | null;
+          import_sequence: number;
+          order_date: string;
           date: string;
           description: string;
           amount: number;
@@ -189,6 +195,9 @@ export interface Database {
           account_id: string;
           category_id?: string | null;
           import_batch_id?: string | null;
+          import_row_number?: number | null;
+          import_sequence?: number;
+          order_date?: string;
           date: string;
           description: string;
           amount: number;

@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Box,
   TextField,
   Chip,
   Stack,
@@ -9,9 +8,15 @@ import {
   FormControl,
   InputLabel,
   InputAdornment,
+  Paper,
+  Collapse,
+  Button,
+  IconButton,
+  Tooltip,
+  Typography,
 } from '@mui/material';
-import { Search as SearchIcon } from '@mui/icons-material';
-import { TransactionType } from '@/types/domain.types';
+import { Search as SearchIcon, TuneOutlined as TuneOutlinedIcon, ExpandLess as ExpandLessIcon, SwapVert as SwapVertIcon } from '@mui/icons-material';
+import { SortDirection, TransactionType } from '@/types/domain.types';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { useCategories } from '@/features/categories/hooks/useCategories';
 
@@ -32,6 +37,8 @@ interface TransactionFilterBarProps {
   maxAmount: string;
   onMinAmountChange: (val: string) => void;
   onMaxAmountChange: (val: string) => void;
+  sortDirection: SortDirection;
+  onSortDirectionChange: () => void;
 }
 
 export const TransactionFilterBar: React.FC<TransactionFilterBarProps> = ({
@@ -51,15 +58,19 @@ export const TransactionFilterBar: React.FC<TransactionFilterBarProps> = ({
   maxAmount,
   onMinAmountChange,
   onMaxAmountChange,
+  sortDirection,
+  onSortDirectionChange,
 }) => {
   const { accounts } = useAccounts(true);
   const { categories } = useCategories();
+  const [expanded, setExpanded] = React.useState(false);
+  const activeFilterCount = [selectedAccountId, selectedCategoryId, startDate, endDate, minAmount, maxAmount]
+    .filter(Boolean).length;
 
   return (
-    <Box sx={{ mb: 3 }}>
-      <Stack spacing={2}>
-        {/* Row 1: Search & Dropdowns */}
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="center">
+    <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2, bgcolor: 'background.paper' }}>
+      <Stack spacing={1.5}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'stretch', md: 'center' }}>
           <TextField
             placeholder="Search description, category, or notes..."
             size="small"
@@ -73,9 +84,34 @@ export const TransactionFilterBar: React.FC<TransactionFilterBarProps> = ({
                 </InputAdornment>
               ),
             }}
+            sx={{ minWidth: 220, flex: 1 }}
           />
 
-          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 160 } }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="body2" fontWeight={600} sx={{ px: 1, whiteSpace: 'nowrap' }}>
+              Date + import order
+            </Typography>
+            <Tooltip title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}>
+              <IconButton size="small" onClick={onSortDirectionChange} aria-label="Toggle sort direction">
+                <SwapVertIcon />
+              </IconButton>
+            </Tooltip>
+            <Button
+              size="small"
+              variant={expanded ? 'contained' : 'outlined'}
+              startIcon={expanded ? <ExpandLessIcon /> : <TuneOutlinedIcon />}
+              onClick={() => setExpanded((current) => !current)}
+              sx={{ whiteSpace: 'nowrap' }}
+            >
+              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+            </Button>
+          </Stack>
+        </Stack>
+
+        <Collapse in={expanded}>
+          <Stack spacing={1.5}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems="center">
+          <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 150 } }}>
             <InputLabel>Account</InputLabel>
             <Select
               value={selectedAccountId}
@@ -91,7 +127,7 @@ export const TransactionFilterBar: React.FC<TransactionFilterBarProps> = ({
             </Select>
           </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 160 } }}>
+          <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 150 } }}>
             <InputLabel>Category</InputLabel>
             <Select
               value={selectedCategoryId}
@@ -106,9 +142,9 @@ export const TransactionFilterBar: React.FC<TransactionFilterBarProps> = ({
               ))}
             </Select>
           </FormControl>
-        </Stack>
+            </Stack>
 
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems="center">
+            <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.5} alignItems="center">
           <TextField
             label="From"
             type="date"
@@ -116,7 +152,7 @@ export const TransactionFilterBar: React.FC<TransactionFilterBarProps> = ({
             value={startDate}
             onChange={(e) => onStartDateChange(e.target.value)}
             InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: { xs: '100%', md: 170 } }}
+            sx={{ minWidth: { xs: '100%', lg: 160 } }}
           />
 
           <TextField
@@ -126,34 +162,35 @@ export const TransactionFilterBar: React.FC<TransactionFilterBarProps> = ({
             value={endDate}
             onChange={(e) => onEndDateChange(e.target.value)}
             InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: { xs: '100%', md: 170 } }}
+            sx={{ minWidth: { xs: '100%', lg: 160 } }}
           />
 
           <TextField
-            label="Min amount"
+            label="Min"
             type="number"
             size="small"
             value={minAmount}
             onChange={(e) => onMinAmountChange(e.target.value)}
-            sx={{ minWidth: { xs: '100%', md: 140 } }}
+            sx={{ minWidth: { xs: '100%', lg: 120 } }}
           />
 
           <TextField
-            label="Max amount"
+            label="Max"
             type="number"
             size="small"
             value={maxAmount}
             onChange={(e) => onMaxAmountChange(e.target.value)}
-            sx={{ minWidth: { xs: '100%', md: 140 } }}
+            sx={{ minWidth: { xs: '100%', lg: 120 } }}
           />
-        </Stack>
+            </Stack>
+          </Stack>
+        </Collapse>
 
-        {/* Row 2: Quick Filter Chips */}
         <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 0.5 }}>
           {(['ALL', 'EXPENSE', 'INCOME', 'TRANSFER'] as const).map((type) => (
             <Chip
               key={type}
-              label={type === 'ALL' ? 'All Transactions' : type}
+              label={type === 'ALL' ? 'All' : type}
               clickable
               size="small"
               color={selectedType === type ? 'primary' : 'default'}
@@ -163,7 +200,7 @@ export const TransactionFilterBar: React.FC<TransactionFilterBarProps> = ({
           ))}
         </Stack>
       </Stack>
-    </Box>
+    </Paper>
   );
 };
 

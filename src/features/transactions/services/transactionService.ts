@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
+import { supabase, isSupabaseConfigured, getAuthenticatedUserId } from '@/lib/supabase/client';
 import { categoryService } from '@/features/categories/services/categoryService';
 import {
   Transaction,
@@ -173,8 +173,40 @@ export const transactionService = {
         filtered = filtered.filter((t) => t.date <= params.endDate!);
       }
 
-      // Sort by date desc
-      filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const sortBy = params.sortBy || 'imported';
+      const sortDirection = params.sortDirection || 'desc';
+      const directionMultiplier = sortDirection === 'asc' ? 1 : -1;
+      filtered.sort((a, b) => {
+        if (sortBy === 'imported') return 0;
+        const aValue = sortBy === 'description'
+          ? a.description.toLowerCase()
+          : sortBy === 'date'
+          ? a.orderDate || a.date
+          : a[sortBy];
+        const bValue = sortBy === 'description'
+          ? b.description.toLowerCase()
+          : sortBy === 'date'
+          ? b.orderDate || b.date
+          : b[sortBy];
+
+        if (aValue === bValue) return 0;
+        if (aValue === null || aValue === undefined || aValue === '') return 1 * directionMultiplier;
+        if (bValue === null || bValue === undefined || bValue === '') return -1 * directionMultiplier;
+        if (sortBy === 'date') {
+          const dateComparison = (new Date(String(aValue)).getTime() - new Date(String(bValue)).getTime()) * directionMultiplier;
+          if (dateComparison !== 0) return dateComparison;
+          const sequenceComparison = Number(a.importSequence || 0) - Number(b.importSequence || 0);
+          const rowNumberComparison = Number(a.importRowNumber || 0) - Number(b.importRowNumber || 0);
+          if (rowNumberComparison !== 0 && (a.importRowNumber || b.importRowNumber)) {
+            return rowNumberComparison * (sortDirection === 'asc' ? -1 : 1);
+          }
+          return sequenceComparison * (sortDirection === 'asc' ? -1 : 1);
+        }
+        if (typeof aValue === 'string' || typeof bValue === 'string') {
+          return String(aValue).localeCompare(String(bValue)) * directionMultiplier;
+        }
+        return (Number(aValue) - Number(bValue)) * directionMultiplier;
+      });
 
       const total = filtered.length;
       const startIndex = (page - 1) * pageSize;
@@ -190,14 +222,31 @@ export const transactionService = {
     }
 
     // Hosted Supabase Query
+    const sortBy = params.sortBy || 'imported';
+    const sortDirection = params.sortDirection || 'desc';
     let query = supabase
       .from('transactions')
       .select(
         '*, accounts(name, banks(name)), categories(name, color)',
         { count: 'exact' }
-      )
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false });
+      );
+
+    if (sortBy === 'imported') {
+      query = query
+        .order('import_sequence', { ascending: true });
+    } else if (sortBy === 'date') {
+      query = query
+        .order('order_date', { ascending: sortDirection === 'asc', nullsFirst: false })
+        .order('import_row_number', { ascending: sortDirection === 'desc', nullsFirst: false })
+        .order('import_sequence', { ascending: sortDirection === 'desc' });
+    } else {
+      const sortColumn = sortBy === 'runningBalance'
+        ? 'running_balance'
+        : sortBy;
+      query = query
+        .order(sortColumn, { ascending: sortDirection === 'asc', nullsFirst: false })
+        .order('created_at', { ascending: false });
+    }
 
     if (params.search) {
       query = query.ilike('description', `%${params.search}%`);
@@ -248,6 +297,9 @@ export const transactionService = {
       categoryName: row.categories?.name,
       categoryColor: row.categories?.color,
       importBatchId: row.import_batch_id,
+      importRowNumber: row.import_row_number,
+      importSequence: row.import_sequence,
+      orderDate: row.order_date,
       date: row.date,
       description: row.description,
       amount: Number(row.amount),
@@ -297,6 +349,7 @@ export const transactionService = {
         categoryName,
         categoryColor,
         importBatchId: null,
+        orderDate: dto.date,
         date: dto.date,
         description: dto.description,
         amount: dto.amount,
@@ -315,12 +368,15 @@ export const transactionService = {
     }
 
     // Supabase Insert
+    const userId = await getAuthenticatedUserId();
     const { data, error } = await supabase
       .from('transactions')
       .insert({
+        user_id: userId,
         account_id: dto.accountId,
         category_id: dto.categoryId || null,
         date: dto.date,
+        order_date: dto.date.slice(0, 10),
         description: dto.description,
         amount: dto.amount,
         transaction_type: dto.transactionType,
@@ -339,9 +395,11 @@ export const transactionService = {
       const { data: pairData } = await supabase
         .from('transactions')
         .insert({
+          user_id: userId,
           account_id: dto.transferDestinationAccountId,
           category_id: dto.categoryId || null,
           date: dto.date,
+          order_date: dto.date.slice(0, 10),
           description: `Transfer from ${data.accounts?.name || 'Account'}`,
           amount: dto.amount,
           transaction_type: 'TRANSFER',
@@ -381,6 +439,9 @@ export const transactionService = {
       currency: data.currency,
       notes: data.notes,
       transferPairId: data.transfer_pair_id,
+      importRowNumber: data.import_row_number,
+      importSequence: data.import_sequence,
+      orderDate: data.order_date,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };
@@ -434,6 +495,21 @@ export const transactionService = {
     }
 
     const { error } = await supabase.from('transactions').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  async deleteAllTransactions(): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      mockTransactions = [];
+      return;
+    }
+
+    const userId = await getAuthenticatedUserId();
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('user_id', userId);
+
     if (error) throw error;
   },
 };

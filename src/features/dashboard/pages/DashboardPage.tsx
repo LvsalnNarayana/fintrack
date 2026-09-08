@@ -29,6 +29,7 @@ export const DashboardPage: React.FC = () => {
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
   const { accounts } = useAccounts(true);
   const bounds = getPeriodBounds(period);
@@ -43,11 +44,23 @@ export const DashboardPage: React.FC = () => {
   const {
     transactions,
     createTransaction,
+    updateTransaction,
     deleteTransaction,
   } = useTransactions({
     accountId: selectedAccountId || undefined,
     pageSize: 5,
   });
+
+  const handleDeleteTransaction = async (id: string): Promise<boolean> => {
+    const password = window.prompt('Enter the settings password to delete this transaction.');
+    if (password !== (import.meta.env.VITE_SETTINGS_PASSWORD || 'fintrack123')) {
+      window.alert('Incorrect password. The transaction was not deleted.');
+      return false;
+    }
+
+    await deleteTransaction(id);
+    return true;
+  };
 
   return (
     <Box>
@@ -137,8 +150,13 @@ export const DashboardPage: React.FC = () => {
       {/* Add Transaction Dialog */}
       <TransactionFormDialog
         open={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
+        onClose={() => {
+          setIsFormOpen(false);
+          setEditingTx(null);
+        }}
         onSubmit={createTransaction}
+        onUpdate={editingTx ? (dto) => updateTransaction({ id: editingTx.id, dto }) : undefined}
+        initialTransaction={editingTx}
       />
 
       {/* Transaction Inspector Drawer */}
@@ -146,7 +164,12 @@ export const DashboardPage: React.FC = () => {
         transaction={selectedTx}
         open={Boolean(selectedTx)}
         onClose={() => setSelectedTx(null)}
-        onDelete={deleteTransaction}
+        onEdit={(transaction) => {
+          setSelectedTx(null);
+          setEditingTx(transaction);
+          setIsFormOpen(true);
+        }}
+        onDelete={handleDeleteTransaction}
       />
     </Box>
   );

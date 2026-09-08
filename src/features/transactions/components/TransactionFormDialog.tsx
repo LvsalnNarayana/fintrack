@@ -18,7 +18,7 @@ import {
   Alert,
   Box,
 } from '@mui/material';
-import { TransactionType, CreateTransactionDTO } from '@/types/domain.types';
+import { Transaction, TransactionType, CreateTransactionDTO, UpdateTransactionDTO } from '@/types/domain.types';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { useCategories } from '@/features/categories/hooks/useCategories';
 import { formatIsoDate } from '@/lib/utils/date';
@@ -27,12 +27,16 @@ interface TransactionFormDialogProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (dto: CreateTransactionDTO) => Promise<unknown>;
+  onUpdate?: (dto: UpdateTransactionDTO) => Promise<unknown>;
+  initialTransaction?: Transaction | null;
 }
 
 export const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
   open,
   onClose,
   onSubmit,
+  onUpdate,
+  initialTransaction = null,
 }) => {
   const { accounts } = useAccounts(true);
   const { categories } = useCategories();
@@ -47,6 +51,32 @@ export const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isEditing = Boolean(initialTransaction);
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    if (initialTransaction) {
+      setType(initialTransaction.transactionType);
+      setAmount(String(initialTransaction.amount));
+      setDate(initialTransaction.date);
+      setAccountId(initialTransaction.accountId);
+      setCategoryId(initialTransaction.categoryId || '');
+      setDescription(initialTransaction.description);
+      setNotes(initialTransaction.notes || '');
+    } else {
+      setType('EXPENSE');
+      setAmount('');
+      setDate(formatIsoDate(new Date()));
+      setAccountId('');
+      setTransferDestinationAccountId('');
+      setCategoryId('');
+      setDescription('');
+      setNotes('');
+    }
+    setError(null);
+  }, [open, initialTransaction]);
 
   // Set default account when list loads
   React.useEffect(() => {
@@ -79,21 +109,29 @@ export const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
     setError(null);
 
     try {
-      await onSubmit({
-        accountId,
-        categoryId: categoryId || null,
-        date,
-        description: description.trim(),
-        amount: numAmount,
-        transactionType: type,
-        notes: notes.trim() || null,
-        transferDestinationAccountId: type === 'TRANSFER' ? transferDestinationAccountId : undefined,
-      });
+      if (isEditing && onUpdate) {
+        await onUpdate({
+          accountId,
+          categoryId: categoryId || null,
+          date,
+          description: description.trim(),
+          amount: numAmount,
+          notes: notes.trim() || null,
+        });
+      } else {
+        await onSubmit({
+          accountId,
+          categoryId: categoryId || null,
+          date,
+          description: description.trim(),
+          amount: numAmount,
+          transactionType: type,
+          notes: notes.trim() || null,
+          transferDestinationAccountId: type === 'TRANSFER' ? transferDestinationAccountId : undefined,
+        });
+      }
 
       // Reset form & close
-      setAmount('');
-      setDescription('');
-      setNotes('');
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create transaction');
@@ -108,35 +146,37 @@ export const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle fontWeight={700}>Add Transaction</DialogTitle>
+      <DialogTitle fontWeight={700}>{isEditing ? 'Edit Transaction' : 'Add Transaction'}</DialogTitle>
       <Box component="form" onSubmit={handleSubmit}>
         <DialogContent dividers>
           <Stack spacing={2.5}>
             {error && <Alert severity="error">{error}</Alert>}
 
             {/* Type Toggle */}
-            <ToggleButtonGroup
-              value={type}
-              exclusive
-              onChange={(_, newType) => {
-                if (newType) {
-                  setType(newType);
-                  setCategoryId('');
-                }
-              }}
-              fullWidth
-              size="small"
-            >
-              <ToggleButton value="EXPENSE" color="error">
-                Expense
-              </ToggleButton>
-              <ToggleButton value="INCOME" color="success">
-                Income
-              </ToggleButton>
-              <ToggleButton value="TRANSFER" color="info">
-                Transfer
-              </ToggleButton>
-            </ToggleButtonGroup>
+            {!isEditing && (
+              <ToggleButtonGroup
+                value={type}
+                exclusive
+                onChange={(_, newType) => {
+                  if (newType) {
+                    setType(newType);
+                    setCategoryId('');
+                  }
+                }}
+                fullWidth
+                size="small"
+              >
+                <ToggleButton value="EXPENSE" color="error">
+                  Expense
+                </ToggleButton>
+                <ToggleButton value="INCOME" color="success">
+                  Income
+                </ToggleButton>
+                <ToggleButton value="TRANSFER" color="info">
+                  Transfer
+                </ToggleButton>
+              </ToggleButtonGroup>
+            )}
 
             {/* Amount and Date */}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -183,7 +223,7 @@ export const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
             </FormControl>
 
             {/* If Transfer: Destination Account */}
-            {type === 'TRANSFER' && (
+            {!isEditing && type === 'TRANSFER' && (
               <FormControl size="small" fullWidth required>
                 <InputLabel>To Account</InputLabel>
                 <Select
@@ -256,7 +296,7 @@ export const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
             disabled={loading}
             startIcon={loading && <CircularProgress size={18} color="inherit" />}
           >
-            Save Transaction
+            {isEditing ? 'Save Changes' : 'Save Transaction'}
           </Button>
         </DialogActions>
       </Box>

@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import { AccountBalanceWallet as AccountBalanceWalletIcon } from '@mui/icons-material';
 
 export const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -28,7 +28,7 @@ export const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!username || !password) return;
 
     setLoading(true);
     setError(null);
@@ -36,16 +36,11 @@ export const LoginPage: React.FC = () => {
 
     try {
       if (isSignUp) {
-        await authService.signUp(email, password);
-        setMessage('Registration successful! Please check your email for confirmation link or sign in.');
+        await authService.signUp(username, password);
+        setMessage('Registration successful! You can now sign in with your username.');
       } else {
-        if (password) {
-          await authService.signInWithPassword(email, password);
-          navigate('/dashboard');
-        } else {
-          await authService.signInWithEmail(email);
-          setMessage('Magic link sent! Check your inbox to sign in.');
-        }
+        await authService.signInWithPassword(username, password);
+        navigate('/dashboard');
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
@@ -111,22 +106,23 @@ export const LoginPage: React.FC = () => {
           <Box component="form" onSubmit={handleSubmit}>
             <Stack spacing={2}>
               <TextField
-                label="Email address"
-                type="email"
+                label="Username"
+                type="text"
                 fullWidth
                 size="small"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                helperText="3-30 characters: letters, numbers, or underscores"
               />
               <TextField
-                label="Password (optional for Magic Link)"
+                label="Password"
                 type="password"
                 fullWidth
                 size="small"
+                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                helperText={!password ? 'Leave empty to receive a Magic Link' : ''}
               />
               <Button
                 type="submit"
@@ -136,7 +132,7 @@ export const LoginPage: React.FC = () => {
                 disabled={loading}
                 startIcon={loading && <CircularProgress size={20} color="inherit" />}
               >
-                {isSignUp ? 'Create Account' : password ? 'Sign In' : 'Send Magic Link'}
+                {isSignUp ? 'Create Account' : 'Sign In'}
               </Button>
             </Stack>
           </Box>

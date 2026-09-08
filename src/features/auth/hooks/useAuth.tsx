@@ -30,9 +30,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Mock local session for preview/demo when env vars are unset
       const mockUser = {
         id: '00000000-0000-0000-0000-000000000001',
-        email: 'demo@fintrack.local',
+        email: 'demo@users.fintrack.app',
         app_metadata: {},
-        user_metadata: { name: 'Demo User' },
+        user_metadata: { name: 'Demo User', username: 'demo' },
         aud: 'authenticated',
         created_at: new Date().toISOString(),
       } as unknown as User;

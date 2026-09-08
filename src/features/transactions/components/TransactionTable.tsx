@@ -8,6 +8,7 @@ import {
   TableRow,
   Paper,
   Typography,
+  Checkbox,
 } from '@mui/material';
 import { Transaction } from '@/types/domain.types';
 import { CategoryChip } from '@/components/common/CategoryChip';
@@ -17,17 +18,37 @@ import { formatCurrency } from '@/lib/utils/currency';
 interface TransactionTableProps {
   transactions: Transaction[];
   onRowClick?: (transaction: Transaction) => void;
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  allSelected?: boolean;
+  onToggleAll?: () => void;
+  onToggleSelected?: (id: string) => void;
 }
 
 export const TransactionTable: React.FC<TransactionTableProps> = ({
   transactions,
   onRowClick,
+  selectionMode = false,
+  selectedIds = new Set<string>(),
+  allSelected = false,
+  onToggleAll,
+  onToggleSelected,
 }) => {
   return (
     <TableContainer component={Paper} variant="outlined">
       <Table size="small" aria-label="transactions table">
         <TableHead>
           <TableRow>
+            {selectionMode && (
+              <TableCell padding="checkbox">
+                <Checkbox
+                  checked={allSelected}
+                  indeterminate={selectedIds.size > 0 && !allSelected}
+                  onChange={onToggleAll}
+                  inputProps={{ 'aria-label': 'Select all visible transactions' }}
+                />
+              </TableCell>
+            )}
             <TableCell sx={{ width: 120 }}>Date</TableCell>
             <TableCell sx={{ width: 140 }}>Bank & Account</TableCell>
             <TableCell sx={{ width: 140 }}>Category</TableCell>
@@ -45,6 +66,15 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
               onClick={() => onRowClick?.(row)}
               sx={{ cursor: 'pointer' }}
             >
+              {selectionMode && (
+                <TableCell padding="checkbox" onClick={(event) => event.stopPropagation()}>
+                  <Checkbox
+                    checked={selectedIds.has(row.id)}
+                    onChange={() => onToggleSelected?.(row.id)}
+                    inputProps={{ 'aria-label': `Select ${row.description}` }}
+                  />
+                </TableCell>
+              )}
               <TableCell>
                 <Typography variant="body2" color="text.secondary">
                   {formatDateDisplay(row.date)}

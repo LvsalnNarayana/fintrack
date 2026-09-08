@@ -9,7 +9,7 @@ import {
   Button,
   Chip,
 } from '@mui/material';
-import { Close as CloseIcon, DeleteOutline as DeleteOutlineIcon } from '@mui/icons-material';
+import { Close as CloseIcon, DeleteOutline as DeleteOutlineIcon, EditOutlined as EditOutlinedIcon } from '@mui/icons-material';
 import { Transaction } from '@/types/domain.types';
 import { AmountDisplay } from '@/components/common/AmountDisplay';
 import { CategoryChip } from '@/components/common/CategoryChip';
@@ -20,29 +20,36 @@ interface TransactionDetailDrawerProps {
   transaction: Transaction | null;
   open: boolean;
   onClose: () => void;
-  onDelete: (id: string) => Promise<void>;
+  onEdit: (transaction: Transaction) => void;
+  onDelete: (id: string) => Promise<boolean>;
 }
 
 export const TransactionDetailDrawer: React.FC<TransactionDetailDrawerProps> = ({
   transaction,
   open,
   onClose,
+  onEdit,
   onDelete,
 }) => {
   if (!transaction) return null;
 
   const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
-      await onDelete(transaction.id);
-      onClose();
+      const deleted = await onDelete(transaction.id);
+      if (deleted) onClose();
     }
   };
 
   return (
-    <Drawer anchor="right" open={open} onClose={onClose}>
-      <Box sx={{ width: { xs: '100vw', sm: 380 }, p: 3 }}>
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      PaperProps={{ sx: { height: '100dvh', maxHeight: '100dvh', overflow: 'hidden' } }}
+    >
+      <Box sx={{ width: { xs: '100vw', sm: 380 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 3, pb: 2, flexShrink: 0 }}>
           <Typography variant="h6" fontWeight={700}>
             Transaction Details
           </Typography>
@@ -51,8 +58,9 @@ export const TransactionDetailDrawer: React.FC<TransactionDetailDrawerProps> = (
           </IconButton>
         </Box>
 
-        {/* Large Amount Display */}
-        <Box sx={{ my: 3, textAlign: 'center' }}>
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 3 }}>
+          {/* Large Amount Display */}
+          <Box sx={{ my: 3, textAlign: 'center' }}>
           <AmountDisplay
             amount={transaction.amount}
             type={transaction.transactionType}
@@ -73,12 +81,12 @@ export const TransactionDetailDrawer: React.FC<TransactionDetailDrawerProps> = (
               }
             />
           </Box>
-        </Box>
+          </Box>
 
-        <Divider sx={{ my: 2 }} />
+          <Divider sx={{ my: 2 }} />
 
-        {/* Key Fields */}
-        <Stack spacing={2}>
+          {/* Key Fields */}
+          <Stack spacing={2}>
           <Box>
             <Typography variant="caption" color="text.secondary">
               Date
@@ -152,12 +160,21 @@ export const TransactionDetailDrawer: React.FC<TransactionDetailDrawerProps> = (
               {new Date(transaction.createdAt).toLocaleString()}
             </Typography>
           </Box>
-        </Stack>
+          </Stack>
 
-        <Divider sx={{ my: 4 }} />
+          <Divider sx={{ my: 4 }} />
+        </Box>
 
         {/* Actions */}
-        <Stack spacing={1}>
+        <Stack spacing={1} sx={{ p: 3, pt: 2, flexShrink: 0, borderTop: 1, borderColor: 'divider' }}>
+          <Button
+            variant="contained"
+            startIcon={<EditOutlinedIcon />}
+            fullWidth
+            onClick={() => onEdit(transaction)}
+          >
+            Edit Transaction
+          </Button>
           <Button
             variant="outlined"
             color="error"

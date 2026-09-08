@@ -48,15 +48,16 @@ cp .env.example .env
 Fill in your hosted Supabase credentials:
 ```env
 VITE_SUPABASE_URL=https://<your-project-id>.supabase.co
-VITE_SUPABASE_ANON_KEY=<your-anon-key>
+VITE_SUPABASE_PUBLISHABLE_KEY=<your-publishable-key>
 ```
-*(Note: If left unconfigured, FinTrack runs in **Demo Mode** with local sample data for immediate evaluation).*
+FinTrack uses username and password authentication. Supabase still stores an internal auth email behind the scenes, but users never enter an email address. Disable **Authentication → Providers → Email → Confirm email** for username-only registration, because there is no real inbox for the internal address. If left unconfigured, FinTrack runs in **Demo Mode** with local sample data for immediate evaluation.
 
 ### 3. Initialize Database in Hosted Supabase
 1. Open your project in the [Supabase Dashboard](https://app.supabase.com).
 2. Navigate to the **SQL Editor**.
 3. Copy the contents of [`supabase/migrations/20260906000000_init.sql`](./supabase/migrations/20260906000000_init.sql).
 4. Click **Run**. This sets up all tables, triggers, indexes, RLS policies, and analytical RPC functions.
+5. Copy and run [`supabase/migrations/20260907000000_fix_auth_user_trigger.sql`](./supabase/migrations/20260907000000_fix_auth_user_trigger.sql) to add usernames and repair the signup triggers.
 
 ### 4. Start Development Server
 ```bash
@@ -74,7 +75,7 @@ FinTrack is pre-configured for seamless Vercel deployment:
 2. In the Vercel Dashboard, click **Add New Project** and import the repository.
 3. In **Environment Variables**, add:
    * `VITE_SUPABASE_URL` = `https://<your-project-id>.supabase.co`
-   * `VITE_SUPABASE_ANON_KEY` = `<your-anon-key>`
+  * `VITE_SUPABASE_PUBLISHABLE_KEY` = `<your-publishable-key>`
 4. Click **Deploy**.
 
 Vercel automatically detects the Vite framework and applies the SPA routing rules defined in [`vercel.json`](./vercel.json).

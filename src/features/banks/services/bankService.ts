@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
+import { supabase, isSupabaseConfigured, getAuthenticatedUserId } from '@/lib/supabase/client';
 import { Bank } from '@/types/domain.types';
 
 // In-memory demo banks
@@ -58,9 +58,10 @@ export const bankService = {
       return newBank;
     }
 
+    const userId = await getAuthenticatedUserId();
     const { data, error } = await supabase
       .from('banks')
-      .insert({ name })
+      .insert({ user_id: userId, name })
       .select()
       .single();
 

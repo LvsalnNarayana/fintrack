@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
+import { supabase, isSupabaseConfigured, getAuthenticatedUserId } from '@/lib/supabase/client';
 import { Account, AccountType } from '@/types/domain.types';
 
 export interface CreateAccountInput {
@@ -8,6 +8,11 @@ export interface CreateAccountInput {
   accountNumberMask?: string;
   currency?: string;
   openingBalance?: number;
+}
+
+export interface UpdateAccountBalanceInput {
+  id: string;
+  openingBalance: number;
 }
 
 // In-memory demo accounts
@@ -96,9 +101,11 @@ export const accountService = {
       return newAcc;
     }
 
+    const userId = await getAuthenticatedUserId();
     const { data, error } = await supabase
       .from('accounts')
       .insert({
+        user_id: userId,
         bank_id: input.bankId,
         name: input.name,
         account_type: input.accountType,
@@ -126,6 +133,24 @@ export const accountService = {
       createdAt: data.created_at,
       updatedAt: data.updated_at,
     };
+  },
+
+  async updateAccountBalance({ id, openingBalance }: UpdateAccountBalanceInput): Promise<void> {
+    if (!isSupabaseConfigured()) {
+      const acc = mockAccounts.find((a) => a.id === id);
+      if (acc) {
+        acc.openingBalance = openingBalance;
+        acc.updatedAt = new Date().toISOString();
+      }
+      return;
+    }
+
+    const { error } = await supabase
+      .from('accounts')
+      .update({ opening_balance: openingBalance })
+      .eq('id', id);
+
+    if (error) throw error;
   },
 
   async toggleAccountActive(id: string, isActive: boolean): Promise<void> {

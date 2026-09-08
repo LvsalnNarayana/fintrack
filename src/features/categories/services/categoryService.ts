@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client';
+import { supabase, isSupabaseConfigured, getAuthenticatedUserId } from '@/lib/supabase/client';
 import { Category, CategoryType } from '@/types/domain.types';
 
 export interface CreateCategoryInput {
@@ -79,9 +79,11 @@ export const categoryService = {
       return newCat;
     }
 
+    const userId = await getAuthenticatedUserId();
     const { data, error } = await supabase
       .from('categories')
       .insert({
+        user_id: userId,
         name: input.name,
         type: input.type,
         color: input.color || '#64748B',

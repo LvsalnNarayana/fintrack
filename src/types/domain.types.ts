@@ -5,10 +5,13 @@ export type TransactionType = 'INCOME' | 'EXPENSE' | 'TRANSFER';
 export type CategoryType = 'INCOME' | 'EXPENSE';
 
 export type RuleMatchType = 'CONTAINS' | 'EXACT' | 'STARTS_WITH' | 'REGEX';
+export type TransactionSortField = 'imported' | 'date' | 'amount' | 'description' | 'runningBalance' | 'deposit' | 'withdrawal';
+export type SortDirection = 'asc' | 'desc';
 
 export interface UserProfile {
   id: string;
   email: string;
+  username: string;
   displayName: string | null;
   baseCurrency: string;
   dateFormat: string;
@@ -85,6 +88,9 @@ export interface Transaction {
   currency: string;
   notes: string | null;
   transferPairId: string | null;
+  importRowNumber?: number | null;
+  importSequence?: number | null;
+  orderDate?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -112,6 +118,8 @@ export interface TransactionFilterParams {
   endDate?: string;
   minAmount?: number;
   maxAmount?: number;
+  sortBy?: TransactionSortField;
+  sortDirection?: SortDirection;
   page?: number;
   pageSize?: number;
 }

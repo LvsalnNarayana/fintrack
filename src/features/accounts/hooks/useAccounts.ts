@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { accountService, CreateAccountInput } from '../services/accountService';
+import { accountService, CreateAccountInput, UpdateAccountBalanceInput } from '../services/accountService';
 import { queryKeys } from '@/lib/query/queryKeys';
 
 export const useAccounts = (activeOnly = false) => {
@@ -17,6 +17,13 @@ export const useAccounts = (activeOnly = false) => {
     },
   });
 
+  const updateBalanceMutation = useMutation({
+    mutationFn: (input: UpdateAccountBalanceInput) => accountService.updateAccountBalance(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
+    },
+  });
+
   const toggleActiveMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       accountService.toggleAccountActive(id, isActive),
@@ -29,6 +36,7 @@ export const useAccounts = (activeOnly = false) => {
     ...query,
     accounts: query.data || [],
     createAccount: createMutation.mutateAsync,
+    updateAccountBalance: updateBalanceMutation.mutateAsync,
     toggleActive: toggleActiveMutation.mutateAsync,
   };
 };

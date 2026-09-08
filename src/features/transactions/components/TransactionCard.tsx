@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, CardActionArea, CardContent, Box, Typography, Stack } from '@mui/material';
+import { Card, CardActionArea, CardContent, Box, Typography, Stack, Checkbox } from '@mui/material';
 import { Transaction } from '@/types/domain.types';
 import { AmountDisplay } from '@/components/common/AmountDisplay';
 import { CategoryChip } from '@/components/common/CategoryChip';
@@ -9,13 +9,31 @@ import { formatCurrency } from '@/lib/utils/currency';
 interface TransactionCardProps {
   transaction: Transaction;
   onClick?: () => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelected?: () => void;
 }
 
-export const TransactionCard: React.FC<TransactionCardProps> = ({ transaction, onClick }) => {
+export const TransactionCard: React.FC<TransactionCardProps> = ({
+  transaction,
+  onClick,
+  selectionMode = false,
+  selected = false,
+  onToggleSelected,
+}) => {
   return (
-    <Card sx={{ mb: 1.5 }}>
-      <CardActionArea onClick={onClick} sx={{ p: 0.5 }}>
-        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+    <Card sx={{ mb: 1.5, position: 'relative' }}>
+      {selectionMode && (
+        <Checkbox
+          checked={selected}
+          onChange={onToggleSelected}
+          onClick={(event) => event.stopPropagation()}
+          sx={{ position: 'absolute', top: 4, left: 4, zIndex: 1 }}
+          inputProps={{ 'aria-label': `Select ${transaction.description}` }}
+        />
+      )}
+      <CardActionArea onClick={selectionMode ? onToggleSelected : onClick} sx={{ p: 0.5 }}>
+        <CardContent sx={{ p: 1.5, pl: selectionMode ? 6 : 1.5, '&:last-child': { pb: 1.5 } }}>
           {/* Top Row: Date and Signed Amount */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
             <Typography variant="caption" color="text.secondary" fontWeight={500}>

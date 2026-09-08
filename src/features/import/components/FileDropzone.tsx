@@ -76,6 +76,16 @@ export const FileDropzone: React.FC<FileDropzoneProps> = ({
       <Button variant="outlined" size="small" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
         Browse Files
       </Button>
+      <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 2 }}>
+        Need a template?{' '}
+        <a
+          href="/sample-bank-statement.csv"
+          download
+          onClick={(e) => e.stopPropagation()}
+        >
+          Download sample CSV
+        </a>
+      </Typography>
     </Paper>
   );
 };

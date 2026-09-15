@@ -55,9 +55,8 @@ FinTrack uses username and password authentication. Supabase still stores an int
 ### 3. Initialize Database in Hosted Supabase
 1. Open your project in the [Supabase Dashboard](https://app.supabase.com).
 2. Navigate to the **SQL Editor**.
-3. Copy the contents of [`supabase/migrations/20260906000000_init.sql`](./supabase/migrations/20260906000000_init.sql).
-4. Click **Run**. This sets up all tables, triggers, indexes, RLS policies, and analytical RPC functions.
-5. Copy and run [`supabase/migrations/20260907000000_fix_auth_user_trigger.sql`](./supabase/migrations/20260907000000_fix_auth_user_trigger.sql) to add usernames and repair the signup triggers.
+3. Copy the contents of [`supabase/migrations/20260908000000_consolidated_schema.sql`](./supabase/migrations/20260908000000_consolidated_schema.sql).
+4. Click **Run**. This single file sets up or upgrades all tables, username auth triggers, ordering fields, indexes, RLS policies, and analytical RPC functions.
 
 ### 4. Start Development Server
 ```bash

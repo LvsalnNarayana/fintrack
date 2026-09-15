@@ -150,7 +150,11 @@ export const transactionService = {
       }
 
       if (params.categoryId) {
-        filtered = filtered.filter((t) => t.categoryId === params.categoryId);
+        if (params.categoryId === 'uncat') {
+          filtered = filtered.filter((t) => !t.categoryId);
+        } else {
+          filtered = filtered.filter((t) => t.categoryId === params.categoryId);
+        }
       }
 
       if (params.transactionType) {
@@ -257,7 +261,9 @@ export const transactionService = {
     }
 
     if (params.categoryId) {
-      query = query.eq('category_id', params.categoryId);
+      query = params.categoryId === 'uncat'
+        ? query.is('category_id', null)
+        : query.eq('category_id', params.categoryId);
     }
 
     if (params.transactionType) {

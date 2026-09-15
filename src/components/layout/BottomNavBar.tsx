@@ -3,6 +3,7 @@ import { Paper, BottomNavigation, BottomNavigationAction } from '@mui/material';
 import {
   DashboardOutlined as DashboardOutlinedIcon,
   ReceiptLongOutlined as ReceiptLongOutlinedIcon,
+  CalendarMonthOutlined as CalendarMonthOutlinedIcon,
   BarChartOutlined as BarChartOutlinedIcon,
   SettingsOutlined as SettingsOutlinedIcon,
 } from '@mui/icons-material';
@@ -15,8 +16,9 @@ export const BottomNavBar: React.FC = () => {
   const getCurrentTab = () => {
     const path = location.pathname;
     if (path.startsWith('/transactions')) return 1;
-    if (path.startsWith('/analytics')) return 2;
-    if (path.startsWith('/settings')) return 3;
+    if (path.startsWith('/calendar')) return 2;
+    if (path.startsWith('/analytics')) return 3;
+    if (path.startsWith('/settings')) return 4;
     return 0; // default to dashboard
   };
 
@@ -29,9 +31,12 @@ export const BottomNavBar: React.FC = () => {
         navigate('/transactions');
         break;
       case 2:
-        navigate('/analytics');
+        navigate('/calendar');
         break;
       case 3:
+        navigate('/analytics');
+        break;
+      case 4:
         navigate('/settings');
         break;
     }
@@ -50,13 +55,26 @@ export const BottomNavBar: React.FC = () => {
       }}
       elevation={3}
     >
-      <BottomNavigation value={getCurrentTab()} onChange={handleChange} showLabels>
+      <BottomNavigation
+        value={getCurrentTab()}
+        onChange={handleChange}
+        showLabels
+        sx={{
+          '& .MuiBottomNavigationAction-root': {
+            minWidth: 0,
+            px: 0.5,
+          },
+          '& .MuiBottomNavigationAction-label': {
+            fontSize: '0.65rem',
+          },
+        }}
+      >
         <BottomNavigationAction label="Home" icon={<DashboardOutlinedIcon />} />
         <BottomNavigationAction label="Ledger" icon={<ReceiptLongOutlinedIcon />} />
+        <BottomNavigationAction label="Calendar" icon={<CalendarMonthOutlinedIcon />} />
         <BottomNavigationAction label="Analytics" icon={<BarChartOutlinedIcon />} />
         <BottomNavigationAction label="Settings" icon={<SettingsOutlinedIcon />} />
       </BottomNavigation>
     </Paper>
   );
 };
-

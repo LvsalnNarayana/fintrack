@@ -48,9 +48,9 @@ export const ImportWizardPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Set default account
+  // Set default account when exactly one exists
   React.useEffect(() => {
-    if (accounts.length > 0 && !selectedAccountId) {
+    if (accounts.length === 1 && !selectedAccountId) {
       setSelectedAccountId(accounts[0].id);
     }
   }, [accounts, selectedAccountId]);

@@ -25,6 +25,7 @@ interface TopAppBarProps {
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/dashboard' },
   { label: 'Transactions', path: '/transactions' },
+  { label: 'Calendar', path: '/calendar' },
   { label: 'Analytics', path: '/analytics' },
   { label: 'Import', path: '/import/upload' },
 ];

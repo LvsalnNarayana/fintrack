@@ -19,6 +19,7 @@ import { TransactionDetailDrawer } from '@/features/transactions/components/Tran
 import { useDashboardSummary } from '../hooks/useDashboardSummary';
 import { useTransactions } from '@/features/transactions/hooks/useTransactions';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
+import { useAutoSelectSingleAccount } from '@/features/accounts/hooks/useAutoSelectSingleAccount';
 import { getPeriodBounds, PeriodType } from '@/lib/utils/date';
 import { Transaction } from '@/types/domain.types';
 import { useNavigate } from 'react-router-dom';
@@ -32,6 +33,7 @@ export const DashboardPage: React.FC = () => {
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
   const { accounts } = useAccounts(true);
+  useAutoSelectSingleAccount(accounts, selectedAccountId, setSelectedAccountId);
   const bounds = getPeriodBounds(period);
 
   const {

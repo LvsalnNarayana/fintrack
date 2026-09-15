@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -16,7 +16,8 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material';
-import { Add as AddIcon, DeleteOutline as DeleteOutlineIcon, Close as CloseIcon } from '@mui/icons-material';
+import { Add as AddIcon, DeleteOutline as DeleteOutlineIcon, Close as CloseIcon, FileDownloadOutlined as FileDownloadOutlinedIcon } from '@mui/icons-material';
+import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { TransactionFilterBar } from '../components/TransactionFilterBar';
 import { TransactionCard } from '../components/TransactionCard';
@@ -27,24 +28,61 @@ import { LoadingSkeleton } from '@/components/feedback/LoadingSkeleton';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { ErrorState } from '@/components/feedback/ErrorState';
 import { useTransactions } from '../hooks/useTransactions';
+import { transactionService } from '../services/transactionService';
+import { downloadTransactionsCsv } from '../utils/exportCsv';
+import { useAccounts } from '@/features/accounts/hooks/useAccounts';
+import {
+  getSingleAccountId,
+  useAutoSelectSingleAccount,
+} from '@/features/accounts/hooks/useAutoSelectSingleAccount';
 import { Transaction, TransactionType } from '@/types/domain.types';
+import { formatYearMonth, getPeriodBounds, PeriodType } from '@/lib/utils/date';
+
+const isPeriodType = (value: string | null): value is PeriodType => {
+  return value === 'this_month'
+    || value === 'last_month'
+    || value === 'this_year'
+    || value === 'all'
+    || value === 'custom_month'
+    || value === 'custom_range';
+};
 
 export const TransactionsPage: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [searchParams] = useSearchParams();
 
   // Filter and pagination state
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState<TransactionType | 'ALL'>('ALL');
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [period, setPeriod] = useState<PeriodType>(() => {
+    const fromQuery = searchParams.get('period');
+    return isPeriodType(fromQuery) ? fromQuery : 'all';
+  });
+  const [customMonth, setCustomMonth] = useState(formatYearMonth());
+  const [startDate, setStartDate] = useState(() => searchParams.get('start') || '');
+  const [endDate, setEndDate] = useState(() => searchParams.get('end') || '');
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
   const [sortBy] = useState<'date'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    const fromQuery = searchParams.get('period');
+    if (isPeriodType(fromQuery)) {
+      setPeriod(fromQuery);
+    }
+    const start = searchParams.get('start');
+    const end = searchParams.get('end');
+    if (start) setStartDate(start);
+    if (end) setEndDate(end);
+    if (start || end || isPeriodType(fromQuery)) {
+      setPage(1);
+    }
+  }, [searchParams]);
 
   // Dialog & Drawer state
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -58,7 +96,33 @@ export const TransactionsPage: React.FC = () => {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const deleteResolver = useRef<((deleted: boolean) => void) | null>(null);
+
+  const { accounts } = useAccounts(true);
+  useAutoSelectSingleAccount(accounts, selectedAccountId, setSelectedAccountId);
+
+  const filterParams = {
+    search: search || undefined,
+    transactionType: selectedType === 'ALL' ? undefined : selectedType,
+    accountId: selectedAccountId || undefined,
+    categoryId: selectedCategoryId || undefined,
+    startDate: (() => {
+      if (period === 'custom_range') return startDate || undefined;
+      if (period === 'all') return undefined;
+      return getPeriodBounds(period, customMonth).startDate;
+    })(),
+    endDate: (() => {
+      if (period === 'custom_range') return endDate || undefined;
+      if (period === 'all') return undefined;
+      return getPeriodBounds(period, customMonth).endDate;
+    })(),
+    minAmount: minAmount ? Number(minAmount) : undefined,
+    maxAmount: maxAmount ? Number(maxAmount) : undefined,
+    sortBy,
+    sortDirection,
+  } as const;
 
   const {
     transactions,
@@ -72,19 +136,45 @@ export const TransactionsPage: React.FC = () => {
     deleteTransaction,
     deleteAllTransactions,
   } = useTransactions({
-    search: search || undefined,
-    transactionType: selectedType === 'ALL' ? undefined : selectedType,
-    accountId: selectedAccountId || undefined,
-    categoryId: selectedCategoryId || undefined,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
-    minAmount: minAmount ? Number(minAmount) : undefined,
-    maxAmount: maxAmount ? Number(maxAmount) : undefined,
-    sortBy,
-    sortDirection,
+    ...filterParams,
     page,
     pageSize: 30,
   });
+
+  const clearFilters = () => {
+    setSearch('');
+    setSelectedType('ALL');
+    setSelectedAccountId(getSingleAccountId(accounts));
+    setSelectedCategoryId('');
+    setPeriod('all');
+    setCustomMonth(formatYearMonth());
+    setStartDate('');
+    setEndDate('');
+    setMinAmount('');
+    setMaxAmount('');
+    setPage(1);
+  };
+
+  const handleExportCsv = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const result = await transactionService.getTransactions({
+        ...filterParams,
+        page: 1,
+        pageSize: Math.max(total || 0, 5000),
+      });
+      if (result.data.length === 0) {
+        setExportError('No transactions match the current filters to export.');
+        return;
+      }
+      downloadTransactionsCsv(result.data);
+    } catch (err: unknown) {
+      setExportError(err instanceof Error ? err.message : 'Failed to export CSV');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const allSelected = transactions.length > 0 && transactions.every((tx) => selectedIds.has(tx.id));
 
@@ -185,6 +275,31 @@ export const TransactionsPage: React.FC = () => {
               </>
             ) : (
               <>
+                <Tooltip title="Export filtered transactions as CSV">
+                  <span>
+                    <Button
+                      variant="outlined"
+                      startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <FileDownloadOutlinedIcon />}
+                      onClick={handleExportCsv}
+                      disabled={exporting || isLoading || total === 0}
+                      sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+                    >
+                      Export CSV
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip title="Export CSV">
+                  <span>
+                    <IconButton
+                      onClick={handleExportCsv}
+                      disabled={exporting || isLoading || total === 0}
+                      aria-label="Export CSV"
+                      sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
+                    >
+                      {exporting ? <CircularProgress size={18} /> : <FileDownloadOutlinedIcon />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
                 <Tooltip title="Select transactions to delete">
                   <IconButton onClick={() => setSelectionMode(true)} aria-label="Select transactions to delete">
                     <DeleteOutlineIcon />
@@ -204,6 +319,11 @@ export const TransactionsPage: React.FC = () => {
         }
       />
 
+      {exportError && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setExportError(null)}>
+          {exportError}
+        </Alert>
+      )}
       <TransactionFilterBar
         search={search}
         onSearchChange={(val) => {
@@ -223,6 +343,20 @@ export const TransactionsPage: React.FC = () => {
         selectedCategoryId={selectedCategoryId}
         onCategoryChange={(cat) => {
           setSelectedCategoryId(cat);
+          setPage(1);
+        }}
+        period={period}
+        onPeriodChange={(nextPeriod) => {
+          setPeriod(nextPeriod);
+          if (nextPeriod !== 'custom_range') {
+            setStartDate('');
+            setEndDate('');
+          }
+          setPage(1);
+        }}
+        customMonth={customMonth}
+        onCustomMonthChange={(val) => {
+          setCustomMonth(val);
           setPage(1);
         }}
         startDate={startDate}
@@ -247,9 +381,10 @@ export const TransactionsPage: React.FC = () => {
         }}
         sortDirection={sortDirection}
         onSortDirectionChange={() => {
-          setSortDirection((current) => current === 'asc' ? 'desc' : 'asc');
+          setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
           setPage(1);
         }}
+        onClearFilters={clearFilters}
       />
 
       {isLoading && (
@@ -268,7 +403,13 @@ export const TransactionsPage: React.FC = () => {
         <EmptyState
           title="No transactions found"
           description={
-            search || selectedType !== 'ALL' || selectedAccountId || selectedCategoryId
+            search ||
+            selectedType !== 'ALL' ||
+            selectedAccountId ||
+            selectedCategoryId ||
+            period !== 'all' ||
+            minAmount ||
+            maxAmount
               ? 'Try clearing or modifying your search and filter criteria.'
               : 'Start tracking by adding your first transaction or importing a bank statement.'
           }

@@ -99,9 +99,9 @@ export const analyticsService = {
     const totalSpend = (data || []).reduce((sum: number, r: any) => sum + Number(r.total_amount), 0);
 
     return (data || []).map((r: any) => ({
-      categoryId: r.category_id,
-      categoryName: r.category_name,
-      categoryColor: r.category_color,
+      categoryId: r.category_id || 'uncat',
+      categoryName: r.category_name || 'Uncategorized',
+      categoryColor: r.category_color || '#94A3B8',
       totalAmount: Number(r.total_amount),
       transactionCount: Number(r.transaction_count),
       percentage: totalSpend > 0 ? Math.round((Number(r.total_amount) / totalSpend) * 100) : 0,

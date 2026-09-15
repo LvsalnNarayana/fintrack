@@ -5,6 +5,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage';
 import { TransactionsPage } from '@/features/transactions/pages/TransactionsPage';
+import { CalendarPage } from '@/features/calendar/pages/CalendarPage';
 import { AnalyticsPage } from '@/features/analytics/pages/AnalyticsPage';
 import { ImportWizardPage } from '@/features/import/pages/ImportWizardPage';
 import { SettingsPage } from '@/features/settings/pages/SettingsPage';
@@ -37,6 +38,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/import/upload" element={<ImportWizardPage />} />
         <Route path="/import/*" element={<ImportWizardPage />} />

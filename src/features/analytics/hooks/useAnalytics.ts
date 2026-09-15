@@ -2,7 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import { analyticsService } from '../services/analyticsService';
 import { queryKeys } from '@/lib/query/queryKeys';
 
-export const useAnalytics = (startDate: string, endDate: string, year = 2026, accountId?: string, searchTerm?: string) => {
+export const useAnalytics = (
+  startDate: string,
+  endDate: string,
+  year = 2026,
+  accountId?: string,
+  searchTerm?: string,
+  transactionType?: 'INCOME' | 'EXPENSE' | 'TRANSFER'
+) => {
   const categorySpendingQuery = useQuery({
     queryKey: queryKeys.analytics.categorySpending(startDate, endDate, accountId),
     queryFn: () => analyticsService.getCategorySpending(startDate, endDate, accountId),
@@ -19,9 +26,16 @@ export const useAnalytics = (startDate: string, endDate: string, year = 2026, ac
   });
 
   const searchInsightsQuery = useQuery({
-    queryKey: [...queryKeys.analytics.all, 'searchInsights', startDate, endDate, accountId, searchTerm] as const,
+    queryKey: [...queryKeys.analytics.all, 'searchInsights', startDate, endDate, accountId, searchTerm, transactionType] as const,
     enabled: Boolean(searchTerm && searchTerm.trim()),
-    queryFn: () => analyticsService.getTransactionSearchInsights(searchTerm || '', startDate, endDate, accountId),
+    queryFn: () => analyticsService.getTransactionSearchInsights(
+      searchTerm || '',
+      startDate,
+      endDate,
+      accountId,
+      undefined,
+      transactionType,
+    ),
   });
 
   return {

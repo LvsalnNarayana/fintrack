@@ -36,20 +36,27 @@ import {
 import { PageHeader } from '@/components/common/PageHeader';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
-import { getPeriodBounds, PeriodType } from '@/lib/utils/date';
+import { useAutoSelectSingleAccount } from '@/features/accounts/hooks/useAutoSelectSingleAccount';
+import { formatYearMonth, getPeriodBounds, PeriodType } from '@/lib/utils/date';
 import { formatCurrency } from '@/lib/utils/currency';
 import { CategoryChip } from '@/components/common/CategoryChip';
 import { LoadingSkeleton } from '@/components/feedback/LoadingSkeleton';
+import { CategoryTransactionsDialog } from '../components/CategoryTransactionsDialog';
+import { CategorySpendingItem } from '@/types/domain.types';
 
 export const AnalyticsPage: React.FC = () => {
   const [tabIndex, setTabIndex] = useState(0);
   const [period, setPeriod] = useState<PeriodType>('this_month');
+  const [customMonth, setCustomMonth] = useState(formatYearMonth());
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<'ALL' | 'INCOME' | 'EXPENSE' | 'TRANSFER'>('ALL');
+  const [selectedCategory, setSelectedCategory] = useState<CategorySpendingItem | null>(null);
 
   const { accounts } = useAccounts(true);
-  const bounds = getPeriodBounds(period);
+  useAutoSelectSingleAccount(accounts, selectedAccountId, setSelectedAccountId);
+  const bounds = getPeriodBounds(period, customMonth);
+  const cashFlowYear = period === 'all' ? new Date().getFullYear() : Number(bounds.startDate.slice(0, 4));
 
   const {
     categorySpending,
@@ -63,9 +70,10 @@ export const AnalyticsPage: React.FC = () => {
   } = useAnalytics(
     bounds.startDate,
     bounds.endDate,
-    2026,
+    cashFlowYear,
     selectedAccountId || undefined,
-    searchTerm || undefined
+    searchTerm || undefined,
+    selectedType === 'ALL' ? undefined : selectedType,
   );
 
   const summaryTotals = searchInsights.reduce(
@@ -96,9 +104,22 @@ export const AnalyticsPage: React.FC = () => {
             <MenuItem value="this_month">This Month</MenuItem>
             <MenuItem value="last_month">Last Month</MenuItem>
             <MenuItem value="this_year">This Year</MenuItem>
+            <MenuItem value="custom_month">Custom Month</MenuItem>
             <MenuItem value="all">All Time</MenuItem>
           </Select>
         </FormControl>
+
+        {period === 'custom_month' && (
+          <TextField
+            label="Month"
+            type="month"
+            size="small"
+            value={customMonth}
+            onChange={(e) => setCustomMonth(e.target.value || formatYearMonth())}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 180 }}
+          />
+        )}
 
         <FormControl size="small" sx={{ minWidth: 180 }}>
           <InputLabel>Account</InputLabel>
@@ -161,7 +182,7 @@ export const AnalyticsPage: React.FC = () => {
         <Card>
           <CardContent sx={{ p: 3 }}>
             <Typography variant="h6" fontWeight={600} gutterBottom>
-              Income vs. Expense (2026)
+              Income vs. Expense ({cashFlowYear})
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               Monthly net cash flow comparison
@@ -255,7 +276,7 @@ export const AnalyticsPage: React.FC = () => {
                 Category Details
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Ranked by expenditure
+                Ranked by expenditure · click a row to view transactions
               </Typography>
 
               <TableContainer component={Paper} variant="outlined">
@@ -269,7 +290,13 @@ export const AnalyticsPage: React.FC = () => {
                   </TableHead>
                   <TableBody>
                     {categorySpending.map((cat) => (
-                      <TableRow key={cat.categoryId}>
+                      <TableRow
+                        key={cat.categoryId}
+                        hover
+                        selected={selectedCategory?.categoryId === cat.categoryId}
+                        onClick={() => setSelectedCategory(cat)}
+                        sx={{ cursor: 'pointer' }}
+                      >
                         <TableCell>
                           <CategoryChip
                             name={cat.categoryName}
@@ -439,6 +466,18 @@ export const AnalyticsPage: React.FC = () => {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {selectedCategory && (
+        <CategoryTransactionsDialog
+          open={Boolean(selectedCategory)}
+          category={selectedCategory}
+          startDate={bounds.startDate}
+          endDate={bounds.endDate}
+          accountId={selectedAccountId || undefined}
+          periodLabel={bounds.label}
+          onClose={() => setSelectedCategory(null)}
+        />
       )}
     </Box>
   );

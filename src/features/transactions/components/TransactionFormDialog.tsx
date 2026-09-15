@@ -78,9 +78,9 @@ export const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
     setError(null);
   }, [open, initialTransaction]);
 
-  // Set default account when list loads
+  // Set default account when exactly one exists
   React.useEffect(() => {
-    if (accounts.length > 0 && !accountId) {
+    if (accounts.length === 1 && !accountId) {
       setAccountId(accounts[0].id);
     }
   }, [accounts, accountId]);

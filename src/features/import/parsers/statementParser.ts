@@ -76,6 +76,8 @@ export const transformRowsWithMapping = (
   const amountHeader = mappings.find((m) => m.targetField === 'amount')?.originalHeader;
   const categoryHeader = mappings.find((m) => m.targetField === 'category')?.originalHeader;
   const notesHeader = mappings.find((m) => m.targetField === 'notes')?.originalHeader;
+  const accountHeader = mappings.find((m) => m.targetField === 'account')?.originalHeader;
+  const bankHeader = mappings.find((m) => m.targetField === 'bank')?.originalHeader;
 
   return rows.map((raw) => {
     const rawDate = dateHeader ? String(raw[dateHeader] || '') : '';
@@ -86,7 +88,7 @@ export const transformRowsWithMapping = (
       ? parseNumericAmount(raw[balanceHeader])
       : null;
     const currency = currencyHeader && raw[currencyHeader]
-      ? String(raw[currencyHeader])
+      ? String(raw[currencyHeader]).trim() || defaultCurrency
       : defaultCurrency;
     const categoryName = categoryHeader
       ? String(raw[categoryHeader] || '').trim() || null
@@ -94,18 +96,22 @@ export const transformRowsWithMapping = (
     const notes = notesHeader
       ? String(raw[notesHeader] || '').trim() || null
       : null;
+    const accountName = accountHeader
+      ? String(raw[accountHeader] || '').trim() || null
+      : null;
+    const bankName = bankHeader
+      ? String(raw[bankHeader] || '').trim() || null
+      : null;
 
     const explicitType = typeHeader
       ? parseTransactionType(String(raw[typeHeader] || ''))
       : undefined;
     const amountFromColumn = amountHeader ? parseNumericAmount(raw[amountHeader]) : 0;
 
-    // FinTrack export: derive deposit/withdrawal from Type + Amount when needed
+    // Prefer Deposit/Withdrawal from file; fill from Amount + Type only when both are empty
     if (deposit === 0 && withdrawal === 0 && amountFromColumn > 0) {
       if (explicitType === 'INCOME') {
         deposit = amountFromColumn;
-      } else if (explicitType === 'EXPENSE' || explicitType === 'TRANSFER') {
-        withdrawal = amountFromColumn;
       } else {
         withdrawal = amountFromColumn;
       }
@@ -135,6 +141,8 @@ export const transformRowsWithMapping = (
       amount,
       categoryName,
       notes,
+      accountName,
+      bankName,
       isDuplicate: false,
       skipImport: false,
     };

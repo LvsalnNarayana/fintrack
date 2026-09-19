@@ -1,8 +1,9 @@
 import { supabase, isSupabaseConfigured, getAuthenticatedUserId } from '@/lib/supabase/client';
 import { ParsedStatementRow, ImportBatchResult } from '../types/import.types';
-import { ImportBatch, TransactionType } from '@/types/domain.types';
+import { Account, ImportBatch, TransactionType } from '@/types/domain.types';
 import { transactionService } from '@/features/transactions/services/transactionService';
 import { categoryService } from '@/features/categories/services/categoryService';
+import { accountService } from '@/features/accounts/services/accountService';
 
 const resolveRowTypeAndAmount = (row: ParsedStatementRow): {
   type: TransactionType;
@@ -20,6 +21,16 @@ const resolveRowTypeAndAmount = (row: ParsedStatementRow): {
       ? row.deposit
       : row.withdrawal;
 
+  // Prefer explicit Deposit/Withdrawal from FinTrack export when present
+  if (row.deposit > 0 || row.withdrawal > 0) {
+    return {
+      type,
+      amount: amount || (row.deposit > 0 ? row.deposit : row.withdrawal),
+      deposit: row.deposit,
+      withdrawal: row.withdrawal,
+    };
+  }
+
   return {
     type,
     amount,
@@ -28,18 +39,45 @@ const resolveRowTypeAndAmount = (row: ParsedStatementRow): {
   };
 };
 
+const resolveAccountId = (
+  accounts: Account[],
+  fallbackAccountId: string,
+  accountName?: string | null,
+  bankName?: string | null
+): string => {
+  if (!accountName) return fallbackAccountId;
+
+  const normalizedAccount = accountName.toLowerCase().trim();
+  const normalizedBank = bankName?.toLowerCase().trim();
+
+  const exact = accounts.find((acc) => {
+    const nameMatch = acc.name.toLowerCase().trim() === normalizedAccount;
+    if (!nameMatch) return false;
+    if (!normalizedBank) return true;
+    return (acc.bankName || '').toLowerCase().trim() === normalizedBank;
+  });
+  if (exact) return exact.id;
+
+  const byName = accounts.find((acc) => acc.name.toLowerCase().trim() === normalizedAccount);
+  return byName?.id || fallbackAccountId;
+};
+
 export const importService = {
   async detectDuplicates(
     rows: ParsedStatementRow[],
     accountId: string
   ): Promise<ParsedStatementRow[]> {
+    const accounts = await accountService.getAccounts(true);
+
     if (!isSupabaseConfigured()) {
-      const existing = await transactionService.getTransactions({ accountId, pageSize: 500 });
+      const existing = await transactionService.getTransactions({ pageSize: 2000 });
 
       return rows.map((row) => {
         const { amount } = resolveRowTypeAndAmount(row);
+        const rowAccountId = resolveAccountId(accounts, accountId, row.accountName, row.bankName);
         const isDup = existing.data.some((tx) => {
           return (
+            tx.accountId === rowAccountId &&
             tx.date === row.date &&
             Math.abs(tx.amount - amount) < 0.01 &&
             tx.description.toLowerCase().trim() === row.description.toLowerCase().trim()
@@ -57,17 +95,19 @@ export const importService = {
     const dates = Array.from(new Set(rows.map((r) => r.date)));
     const { data: existing } = await supabase
       .from('transactions')
-      .select('date, amount, description')
-      .eq('account_id', accountId)
+      .select('account_id, date, amount, description')
       .in('date', dates);
 
     const existingSet = new Set(
-      (existing || []).map((e) => `${e.date}|${Number(e.amount)}|${e.description.toLowerCase().trim()}`)
+      (existing || []).map(
+        (e) => `${e.account_id}|${e.date}|${Number(e.amount)}|${e.description.toLowerCase().trim()}`
+      )
     );
 
     return rows.map((row) => {
       const { amount } = resolveRowTypeAndAmount(row);
-      const key = `${row.date}|${amount}|${row.description.toLowerCase().trim()}`;
+      const rowAccountId = resolveAccountId(accounts, accountId, row.accountName, row.bankName);
+      const key = `${rowAccountId}|${row.date}|${amount}|${row.description.toLowerCase().trim()}`;
       const isDup = existingSet.has(key);
 
       return {
@@ -86,7 +126,11 @@ export const importService = {
     const importableRows = rows.filter((r) => !r.skipImport);
     const skippedCount = rows.length - importableRows.length;
 
-    const categories = await categoryService.getCategories(true);
+    const [categories, accounts] = await Promise.all([
+      categoryService.getCategories(true),
+      accountService.getAccounts(true),
+    ]);
+
     const categoryByName = new Map(
       categories.map((cat) => [cat.name.toLowerCase().trim(), cat])
     );
@@ -102,9 +146,10 @@ export const importService = {
     if (!isSupabaseConfigured()) {
       for (const row of [...importableRows].reverse()) {
         const { type, amount } = resolveRowTypeAndAmount(row);
+        const rowAccountId = resolveAccountId(accounts, accountId, row.accountName, row.bankName);
 
         await transactionService.createTransaction({
-          accountId,
+          accountId: rowAccountId,
           date: row.date,
           description: row.description,
           amount,
@@ -149,6 +194,7 @@ export const importService = {
 
     const txRecords = importableRows.map((row, index) => {
       const { type, amount, deposit, withdrawal } = resolveRowTypeAndAmount(row);
+      const rowAccountId = resolveAccountId(accounts, accountId, row.accountName, row.bankName);
 
       let categoryId = resolveCategoryId(row.categoryName, type);
 
@@ -164,7 +210,7 @@ export const importService = {
 
       return {
         user_id: userId,
-        account_id: accountId,
+        account_id: rowAccountId,
         import_batch_id: batch.id,
         import_row_number: index + 1,
         category_id: categoryId,

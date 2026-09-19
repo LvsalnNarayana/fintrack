@@ -11,9 +11,15 @@ const BANK_SYNONYMS: Record<Exclude<TargetField, 'ignore'>, string[]> = {
   amount: ['amount', 'txnamount', 'transactionamount'],
   category: ['category', 'categoryname'],
   notes: ['notes', 'note', 'comment', 'comments'],
+  account: ['account', 'accountname', 'accounttitle'],
+  bank: ['bank', 'bankname', 'institution'],
 };
 
-/** Exact FinTrack export headers (from downloadTransactionsCsv). */
+/**
+ * Exact FinTrack export headers after normalization:
+ * Date, Description, Type, Amount, Deposit, Withdrawal, Category,
+ * Account, Bank, Currency, Running Balance, Notes
+ */
 const FINTRACK_EXPORT_EXACT: Record<string, TargetField> = {
   date: 'date',
   description: 'description',
@@ -22,8 +28,8 @@ const FINTRACK_EXPORT_EXACT: Record<string, TargetField> = {
   deposit: 'deposit',
   withdrawal: 'withdrawal',
   category: 'category',
-  account: 'ignore',
-  bank: 'ignore',
+  account: 'account',
+  bank: 'bank',
   currency: 'currency',
   runningbalance: 'running_balance',
   notes: 'notes',
@@ -34,11 +40,18 @@ const cleanHeader = (rawHeader: string): string =>
 
 export const looksLikeFinTrackExport = (headers: string[]): boolean => {
   const cleaned = new Set(headers.map(cleanHeader));
-  const required = ['date', 'description', 'type', 'amount'];
-  const soft = ['category', 'notes', 'deposit', 'withdrawal'];
+  const required = ['date', 'description', 'type', 'amount', 'deposit', 'withdrawal'];
+  const expected = [
+    'category',
+    'account',
+    'bank',
+    'currency',
+    'runningbalance',
+    'notes',
+  ];
   const hasRequired = required.every((key) => cleaned.has(key));
-  const softHits = soft.filter((key) => cleaned.has(key)).length;
-  return hasRequired && softHits >= 1;
+  const softHits = expected.filter((key) => cleaned.has(key)).length;
+  return hasRequired && softHits >= 2;
 };
 
 export const detectColumnMapping = (

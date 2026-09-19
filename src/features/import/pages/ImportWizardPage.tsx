@@ -252,7 +252,7 @@ export const ImportWizardPage: React.FC = () => {
                   </Select>
                   <FormHelperText>
                     {importFormat === 'fintrack_export'
-                      ? 'Rows are imported into this account (Account/Bank columns in the file are ignored).'
+                      ? 'Fallback account if a row’s Account/Bank cannot be matched. Matched Account+Bank from the CSV are preferred.'
                       : 'Bank statement rows are imported into this account.'}
                   </FormHelperText>
                 </FormControl>
@@ -289,7 +289,7 @@ export const ImportWizardPage: React.FC = () => {
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   {importFormat === 'fintrack_export'
-                    ? 'FinTrack export fields (Type, Category, Notes, Amount) should map automatically.'
+                    ? 'All FinTrack export columns (Date, Description, Type, Amount, Deposit, Withdrawal, Category, Account, Bank, Currency, Running Balance, Notes) should show Exact match.'
                     : 'Check that detected bank columns align with FinTrack ledger fields.'}
                 </Typography>
               </Box>

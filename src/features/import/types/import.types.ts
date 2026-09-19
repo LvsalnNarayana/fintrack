@@ -11,7 +11,25 @@ export type TargetField =
   | 'amount'
   | 'category'
   | 'notes'
+  | 'account'
+  | 'bank'
   | 'ignore';
+
+/** Exact column headers written by FinTrack CSV export. */
+export const FINTRACK_EXPORT_HEADERS = [
+  'Date',
+  'Description',
+  'Type',
+  'Amount',
+  'Deposit',
+  'Withdrawal',
+  'Category',
+  'Account',
+  'Bank',
+  'Currency',
+  'Running Balance',
+  'Notes',
+] as const;
 
 export interface ColumnMapping {
   originalHeader: string;
@@ -31,6 +49,8 @@ export interface ParsedStatementRow {
   amount?: number;
   categoryName?: string | null;
   notes?: string | null;
+  accountName?: string | null;
+  bankName?: string | null;
   isDuplicate: boolean;
   skipImport: boolean;
 }
@@ -55,6 +75,7 @@ export const IMPORT_FORMAT_OPTIONS: Array<{
   {
     value: 'fintrack_export',
     label: 'FinTrack export',
-    description: 'CSV downloaded from FinTrack (includes Type, Category, Notes, edited Description)',
+    description:
+      'CSV from Transactions → Export CSV (Date, Description, Type, Amount, Deposit, Withdrawal, Category, Account, Bank, Currency, Running Balance, Notes)',
   },
 ];

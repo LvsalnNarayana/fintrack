@@ -33,14 +33,16 @@ const BANK_FIELD_OPTIONS: { value: TargetField; label: string }[] = [
 const FINTRACK_FIELD_OPTIONS: { value: TargetField; label: string }[] = [
   { value: 'date', label: 'Date' },
   { value: 'description', label: 'Description' },
-  { value: 'type', label: 'Type (Income / Expense / Transfer)' },
+  { value: 'type', label: 'Type' },
   { value: 'amount', label: 'Amount' },
   { value: 'deposit', label: 'Deposit' },
   { value: 'withdrawal', label: 'Withdrawal' },
   { value: 'category', label: 'Category' },
-  { value: 'notes', label: 'Notes' },
-  { value: 'running_balance', label: 'Running Balance' },
+  { value: 'account', label: 'Account' },
+  { value: 'bank', label: 'Bank' },
   { value: 'currency', label: 'Currency' },
+  { value: 'running_balance', label: 'Running Balance' },
+  { value: 'notes', label: 'Notes' },
   { value: 'ignore', label: '— Ignore Column —' },
 ];
 

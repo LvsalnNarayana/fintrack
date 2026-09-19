@@ -1,7 +1,32 @@
 import { supabase, isSupabaseConfigured, getAuthenticatedUserId } from '@/lib/supabase/client';
 import { ParsedStatementRow, ImportBatchResult } from '../types/import.types';
-import { ImportBatch } from '@/types/domain.types';
+import { ImportBatch, TransactionType } from '@/types/domain.types';
 import { transactionService } from '@/features/transactions/services/transactionService';
+import { categoryService } from '@/features/categories/services/categoryService';
+
+const resolveRowTypeAndAmount = (row: ParsedStatementRow): {
+  type: TransactionType;
+  amount: number;
+  deposit: number;
+  withdrawal: number;
+} => {
+  const type: TransactionType =
+    row.transactionType ||
+    (row.deposit > 0 && row.withdrawal <= 0 ? 'INCOME' : 'EXPENSE');
+
+  const amount = row.amount && row.amount > 0
+    ? row.amount
+    : row.deposit > 0
+      ? row.deposit
+      : row.withdrawal;
+
+  return {
+    type,
+    amount,
+    deposit: type === 'INCOME' ? amount : 0,
+    withdrawal: type !== 'INCOME' ? amount : 0,
+  };
+};
 
 export const importService = {
   async detectDuplicates(
@@ -9,12 +34,11 @@ export const importService = {
     accountId: string
   ): Promise<ParsedStatementRow[]> {
     if (!isSupabaseConfigured()) {
-      // In demo mode, check against mock transactions
       const existing = await transactionService.getTransactions({ accountId, pageSize: 500 });
 
       return rows.map((row) => {
+        const { amount } = resolveRowTypeAndAmount(row);
         const isDup = existing.data.some((tx) => {
-          const amount = row.deposit > 0 ? row.deposit : row.withdrawal;
           return (
             tx.date === row.date &&
             Math.abs(tx.amount - amount) < 0.01 &&
@@ -30,7 +54,6 @@ export const importService = {
       });
     }
 
-    // Check against Supabase transactions
     const dates = Array.from(new Set(rows.map((r) => r.date)));
     const { data: existing } = await supabase
       .from('transactions')
@@ -43,7 +66,7 @@ export const importService = {
     );
 
     return rows.map((row) => {
-      const amount = row.deposit > 0 ? row.deposit : row.withdrawal;
+      const { amount } = resolveRowTypeAndAmount(row);
       const key = `${row.date}|${amount}|${row.description.toLowerCase().trim()}`;
       const isDup = existingSet.has(key);
 
@@ -63,12 +86,22 @@ export const importService = {
     const importableRows = rows.filter((r) => !r.skipImport);
     const skippedCount = rows.length - importableRows.length;
 
+    const categories = await categoryService.getCategories(true);
+    const categoryByName = new Map(
+      categories.map((cat) => [cat.name.toLowerCase().trim(), cat])
+    );
+
+    const resolveCategoryId = (categoryName?: string | null, type?: TransactionType): string | null => {
+      if (!categoryName) return null;
+      const match = categoryByName.get(categoryName.toLowerCase().trim());
+      if (!match) return null;
+      if (type && type !== 'TRANSFER' && match.type !== type) return null;
+      return match.id;
+    };
+
     if (!isSupabaseConfigured()) {
-      // Demo mode insertion
-      // Demo transactions are prepended, so insert in reverse to retain file order.
       for (const row of [...importableRows].reverse()) {
-        const type = row.deposit > 0 ? 'INCOME' : 'EXPENSE';
-        const amount = row.deposit > 0 ? row.deposit : row.withdrawal;
+        const { type, amount } = resolveRowTypeAndAmount(row);
 
         await transactionService.createTransaction({
           accountId,
@@ -77,6 +110,8 @@ export const importService = {
           amount,
           transactionType: type,
           currency: row.currency,
+          categoryId: resolveCategoryId(row.categoryName, type),
+          notes: row.notes || null,
         });
       }
 
@@ -90,7 +125,6 @@ export const importService = {
 
     const userId = await getAuthenticatedUserId();
 
-    // 1. Create import batch record
     const { data: batch, error: batchError } = await supabase
       .from('import_batches')
       .insert({
@@ -107,21 +141,18 @@ export const importService = {
 
     if (batchError) throw batchError;
 
-    // 2. Fetch active rules for auto-categorization
     const { data: rules } = await supabase
       .from('categorization_rules')
       .select('*')
       .eq('is_active', true)
       .order('priority', { ascending: true });
 
-    // 3. Prepare transaction rows
     const txRecords = importableRows.map((row, index) => {
-      const type = row.deposit > 0 ? 'INCOME' : 'EXPENSE';
-      const amount = row.deposit > 0 ? row.deposit : row.withdrawal;
+      const { type, amount, deposit, withdrawal } = resolveRowTypeAndAmount(row);
 
-      // Auto-assign category
-      let categoryId: string | null = null;
-      if (rules) {
+      let categoryId = resolveCategoryId(row.categoryName, type);
+
+      if (!categoryId && rules) {
         const descLower = row.description.toLowerCase();
         for (const rule of rules) {
           if (descLower.includes(rule.keyword.toLowerCase())) {
@@ -142,10 +173,11 @@ export const importService = {
         description: row.description,
         amount,
         transaction_type: type,
-        deposit: row.deposit,
-        withdrawal: row.withdrawal,
+        deposit,
+        withdrawal,
         running_balance: row.runningBalance,
         currency: row.currency,
+        notes: row.notes || null,
       };
     });
 
@@ -190,9 +222,7 @@ export const importService = {
   async rollbackBatch(batchId: string): Promise<void> {
     if (!isSupabaseConfigured()) return;
 
-    // With ON DELETE CASCADE, deleting batch purges associated transactions
     const { error } = await supabase.from('import_batches').delete().eq('id', batchId);
     if (error) throw error;
   },
 };
-

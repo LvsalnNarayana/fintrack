@@ -15,15 +15,23 @@ import {
   Typography,
   Alert,
   CircularProgress,
+  FormHelperText,
 } from '@mui/material';
 import { CheckCircleOutline as CheckCircleOutlineIcon } from '@mui/icons-material';
 import { PageHeader } from '@/components/common/PageHeader';
 import { FileDropzone } from '../components/FileDropzone';
 import { ColumnMappingTable } from '../components/ColumnMappingTable';
 import { ImportPreviewTable } from '../components/ImportPreviewTable';
-import { ColumnMapping, ParsedStatementRow, TargetField, ImportBatchResult } from '../types/import.types';
+import {
+  ColumnMapping,
+  ParsedStatementRow,
+  TargetField,
+  ImportBatchResult,
+  ImportFormatType,
+  IMPORT_FORMAT_OPTIONS,
+} from '../types/import.types';
 import { parseFileContent, transformRowsWithMapping, RawParseResult } from '../parsers/statementParser';
-import { detectColumnMapping } from '../parsers/statementDetector';
+import { detectColumnMapping, looksLikeFinTrackExport } from '../parsers/statementDetector';
 import { importService } from '../services/importService';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { useNavigate } from 'react-router-dom';
@@ -38,24 +46,24 @@ export const ImportWizardPage: React.FC = () => {
   const { accounts } = useAccounts(true);
 
   const [activeStep, setActiveStep] = useState(0);
+  const [importFormat, setImportFormat] = useState<ImportFormatType>('bank_statement');
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [rawResult, setRawResult] = useState<RawParseResult | null>(null);
   const [mappings, setMappings] = useState<ColumnMapping[]>([]);
   const [previewRows, setPreviewRows] = useState<ParsedStatementRow[]>([]);
   const [importResult, setImportResult] = useState<ImportBatchResult | null>(null);
+  const [formatHint, setFormatHint] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Set default account when exactly one exists
   React.useEffect(() => {
     if (accounts.length === 1 && !selectedAccountId) {
       setSelectedAccountId(accounts[0].id);
     }
   }, [accounts, selectedAccountId]);
 
-  // Step 1 -> Step 2: Parse File & Detect Columns
   const handleFileSelected = async (file: File) => {
     if (!selectedAccountId) {
       setError('Please select an account before uploading.');
@@ -64,6 +72,7 @@ export const ImportWizardPage: React.FC = () => {
 
     setLoading(true);
     setError(null);
+    setFormatHint(null);
     try {
       setSelectedFile(file);
       const parsed = await parseFileContent(file);
@@ -71,7 +80,18 @@ export const ImportWizardPage: React.FC = () => {
         throw new Error('The uploaded statement is empty or formatted incorrectly.');
       }
 
-      const detectedMappings = detectColumnMapping(parsed.headers);
+      let formatToUse = importFormat;
+      const looksFinTrack = looksLikeFinTrackExport(parsed.headers);
+
+      if (looksFinTrack && importFormat === 'bank_statement') {
+        formatToUse = 'fintrack_export';
+        setImportFormat('fintrack_export');
+        setFormatHint('Detected a FinTrack export CSV — switched import type automatically.');
+      } else if (!looksFinTrack && importFormat === 'fintrack_export') {
+        setFormatHint('Headers look like a bank statement. You can switch Import type if mappings look wrong.');
+      }
+
+      const detectedMappings = detectColumnMapping(parsed.headers, formatToUse);
       setRawResult(parsed);
       setMappings(detectedMappings);
       setActiveStep(1);
@@ -82,7 +102,14 @@ export const ImportWizardPage: React.FC = () => {
     }
   };
 
-  // Step 2 -> Step 3: Apply Mapping & Run Duplicate Detection
+  const handleImportFormatChange = (nextFormat: ImportFormatType) => {
+    setImportFormat(nextFormat);
+    setFormatHint(null);
+    if (rawResult) {
+      setMappings(detectColumnMapping(rawResult.headers, nextFormat));
+    }
+  };
+
   const handleProceedToPreview = async () => {
     if (!rawResult) return;
     setLoading(true);
@@ -100,7 +127,6 @@ export const ImportWizardPage: React.FC = () => {
     }
   };
 
-  // Step 3 -> Step 4: Execute Batch Ingestion
   const handleCommitImport = async () => {
     if (!selectedFile) return;
     setLoading(true);
@@ -139,14 +165,26 @@ export const ImportWizardPage: React.FC = () => {
     );
   };
 
+  const resetWizard = () => {
+    setActiveStep(0);
+    setSelectedFile(null);
+    setRawResult(null);
+    setMappings([]);
+    setPreviewRows([]);
+    setImportResult(null);
+    setFormatHint(null);
+    setError(null);
+  };
+
+  const selectedFormatMeta = IMPORT_FORMAT_OPTIONS.find((opt) => opt.value === importFormat);
+
   return (
     <Box>
       <PageHeader
-        title="Import Bank Statement"
-        subtitle="Transform raw Excel/CSV statements into structured ledger entries"
+        title="Import Transactions"
+        subtitle="Import a bank statement or a FinTrack-exported CSV with categories and notes"
       />
 
-      {/* Stepper */}
       <Card sx={{ mb: 3 }}>
         <CardContent sx={{ py: 2.5 }}>
           <Stepper activeStep={activeStep} alternativeLabel>
@@ -165,12 +203,40 @@ export const ImportWizardPage: React.FC = () => {
         </Alert>
       )}
 
-      {/* Step 0: Upload & Account Selection */}
+      {formatHint && (
+        <Alert severity="info" sx={{ mb: 3 }} onClose={() => setFormatHint(null)}>
+          {formatHint}
+        </Alert>
+      )}
+
       {activeStep === 0 && (
         <Card>
           <CardContent sx={{ p: 4 }}>
             <Stack spacing={3}>
-              <Box sx={{ maxWidth: 360 }}>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                  gap: 2,
+                  maxWidth: 720,
+                }}
+              >
+                <FormControl size="small" fullWidth required>
+                  <InputLabel>Import type</InputLabel>
+                  <Select
+                    value={importFormat}
+                    label="Import type"
+                    onChange={(e) => handleImportFormatChange(e.target.value as ImportFormatType)}
+                  >
+                    {IMPORT_FORMAT_OPTIONS.map((opt) => (
+                      <MenuItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  <FormHelperText>{selectedFormatMeta?.description}</FormHelperText>
+                </FormControl>
+
                 <FormControl size="small" fullWidth required>
                   <InputLabel>Destination Account</InputLabel>
                   <Select
@@ -184,6 +250,11 @@ export const ImportWizardPage: React.FC = () => {
                       </MenuItem>
                     ))}
                   </Select>
+                  <FormHelperText>
+                    {importFormat === 'fintrack_export'
+                      ? 'Rows are imported into this account (Account/Bank columns in the file are ignored).'
+                      : 'Bank statement rows are imported into this account.'}
+                  </FormHelperText>
                 </FormControl>
               </Box>
 
@@ -202,19 +273,46 @@ export const ImportWizardPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Step 1: Column Mapping */}
       {activeStep === 1 && (
         <Card>
           <CardContent sx={{ p: 3 }}>
-            <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-              Verify Column Mappings
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
-              Check that detected statement columns align with FinTrack ledger fields.
-            </Typography>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={2}
+              justifyContent="space-between"
+              alignItems={{ xs: 'stretch', sm: 'center' }}
+              sx={{ mb: 2.5 }}
+            >
+              <Box>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                  Verify Column Mappings
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {importFormat === 'fintrack_export'
+                    ? 'FinTrack export fields (Type, Category, Notes, Amount) should map automatically.'
+                    : 'Check that detected bank columns align with FinTrack ledger fields.'}
+                </Typography>
+              </Box>
+
+              <FormControl size="small" sx={{ minWidth: 220 }}>
+                <InputLabel>Import type</InputLabel>
+                <Select
+                  value={importFormat}
+                  label="Import type"
+                  onChange={(e) => handleImportFormatChange(e.target.value as ImportFormatType)}
+                >
+                  {IMPORT_FORMAT_OPTIONS.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Stack>
 
             <ColumnMappingTable
               mappings={mappings}
+              importFormat={importFormat}
               onMappingChange={handleMappingChange}
             />
 
@@ -232,7 +330,6 @@ export const ImportWizardPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Step 2: Preview & Duplicate Resolution */}
       {activeStep === 2 && (
         <Card>
           <CardContent sx={{ p: 3 }}>
@@ -266,7 +363,6 @@ export const ImportWizardPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Step 3: Confirmation Summary */}
       {activeStep === 3 && importResult && (
         <Card>
           <CardContent sx={{ p: 5, textAlign: 'center' }}>
@@ -299,8 +395,8 @@ export const ImportWizardPage: React.FC = () => {
             </Stack>
 
             <Stack direction="row" spacing={2} justifyContent="center">
-              <Button variant="outlined" onClick={() => setActiveStep(0)}>
-                Import Another Statement
+              <Button variant="outlined" onClick={resetWizard}>
+                Import Another File
               </Button>
               <Button variant="contained" onClick={() => navigate('/transactions')}>
                 View Ledger
@@ -312,4 +408,3 @@ export const ImportWizardPage: React.FC = () => {
     </Box>
   );
 };
-

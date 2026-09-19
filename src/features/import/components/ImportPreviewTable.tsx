@@ -32,6 +32,8 @@ export const ImportPreviewTable: React.FC<ImportPreviewTableProps> = ({
             <TableCell sx={{ width: 70 }}>Import</TableCell>
             <TableCell sx={{ width: 110 }}>Date</TableCell>
             <TableCell>Description</TableCell>
+            <TableCell sx={{ width: 100 }}>Type</TableCell>
+            <TableCell>Category</TableCell>
             <TableCell align="right" sx={{ width: 110 }}>Deposit</TableCell>
             <TableCell align="right" sx={{ width: 110 }}>Withdrawal</TableCell>
             <TableCell align="right" sx={{ width: 120 }}>Balance</TableCell>
@@ -59,6 +61,21 @@ export const ImportPreviewTable: React.FC<ImportPreviewTableProps> = ({
               </TableCell>
               <TableCell>
                 <Typography variant="body2">{row.description}</Typography>
+                {row.notes && (
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {row.notes}
+                  </Typography>
+                )}
+              </TableCell>
+              <TableCell>
+                <Typography variant="caption" fontWeight={600}>
+                  {row.transactionType || (row.deposit > 0 ? 'INCOME' : 'EXPENSE')}
+                </Typography>
+              </TableCell>
+              <TableCell>
+                <Typography variant="body2" color="text.secondary">
+                  {row.categoryName || '—'}
+                </Typography>
               </TableCell>
               <TableCell align="right">
                 {row.deposit > 0 ? (

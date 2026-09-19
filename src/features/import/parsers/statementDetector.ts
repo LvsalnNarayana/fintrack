@@ -1,30 +1,82 @@
-import { TargetField, ColumnMapping } from '../types/import.types';
+import { TargetField, ColumnMapping, ImportFormatType } from '../types/import.types';
 
-const SYNONYMS: Record<TargetField, string[]> = {
+const BANK_SYNONYMS: Record<Exclude<TargetField, 'ignore'>, string[]> = {
   date: ['date', 'txndate', 'transactiondate', 'valuedate', 'postingdate', 'bookingdate'],
-  description: ['narration', 'transaction', 'description', 'particulars', 'remarks', 'details', 'memo', 'notes'],
+  description: ['narration', 'transaction', 'description', 'particulars', 'remarks', 'details', 'memo'],
   deposit: ['deposit', 'credit', 'cr', 'depositamt', 'amountcredited', 'deposits'],
   withdrawal: ['withdrawal', 'debit', 'dr', 'withdrawalamt', 'amountdebited', 'withdrawals'],
   running_balance: ['balance', 'runningbalance', 'closingbalance', 'availablebalance', 'netbalance', 'balanceinr'],
   currency: ['currency', 'curr', 'ccy'],
-  ignore: [],
+  type: ['type', 'transactiontype', 'txntype', 'drcr'],
+  amount: ['amount', 'txnamount', 'transactionamount'],
+  category: ['category', 'categoryname'],
+  notes: ['notes', 'note', 'comment', 'comments'],
 };
 
-export const detectColumnMapping = (headers: string[]): ColumnMapping[] => {
+/** Exact FinTrack export headers (from downloadTransactionsCsv). */
+const FINTRACK_EXPORT_EXACT: Record<string, TargetField> = {
+  date: 'date',
+  description: 'description',
+  type: 'type',
+  amount: 'amount',
+  deposit: 'deposit',
+  withdrawal: 'withdrawal',
+  category: 'category',
+  account: 'ignore',
+  bank: 'ignore',
+  currency: 'currency',
+  runningbalance: 'running_balance',
+  notes: 'notes',
+};
+
+const cleanHeader = (rawHeader: string): string =>
+  rawHeader.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+
+export const looksLikeFinTrackExport = (headers: string[]): boolean => {
+  const cleaned = new Set(headers.map(cleanHeader));
+  const required = ['date', 'description', 'type', 'amount'];
+  const soft = ['category', 'notes', 'deposit', 'withdrawal'];
+  const hasRequired = required.every((key) => cleaned.has(key));
+  const softHits = soft.filter((key) => cleaned.has(key)).length;
+  return hasRequired && softHits >= 1;
+};
+
+export const detectColumnMapping = (
+  headers: string[],
+  format: ImportFormatType = 'bank_statement'
+): ColumnMapping[] => {
+  if (format === 'fintrack_export') {
+    return headers.map((rawHeader) => {
+      const cleaned = cleanHeader(rawHeader);
+      const exact = FINTRACK_EXPORT_EXACT[cleaned];
+      if (exact) {
+        return {
+          originalHeader: rawHeader,
+          targetField: exact,
+          confidence: 1.0,
+        };
+      }
+      return {
+        originalHeader: rawHeader,
+        targetField: 'ignore' as TargetField,
+        confidence: 0,
+      };
+    });
+  }
+
   return headers.map((rawHeader) => {
-    const cleaned = rawHeader.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+    const cleaned = cleanHeader(rawHeader);
 
     let bestMatch: TargetField = 'ignore';
     let highestConfidence = 0;
 
-    for (const [field, syns] of Object.entries(SYNONYMS) as [TargetField, string[]][]) {
+    for (const [field, syns] of Object.entries(BANK_SYNONYMS) as [Exclude<TargetField, 'ignore'>, string[]][]) {
       if (syns.includes(cleaned)) {
         bestMatch = field;
         highestConfidence = 1.0;
         break;
       }
 
-      // Substring matching
       for (const syn of syns) {
         if (cleaned.includes(syn) || syn.includes(cleaned)) {
           if (highestConfidence < 0.7) {
@@ -42,4 +94,3 @@ export const detectColumnMapping = (headers: string[]): ColumnMapping[] => {
     };
   });
 };
-

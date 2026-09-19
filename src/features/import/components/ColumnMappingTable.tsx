@@ -12,14 +12,15 @@ import {
   Chip,
   Typography,
 } from '@mui/material';
-import { ColumnMapping, TargetField } from '../types/import.types';
+import { ColumnMapping, ImportFormatType, TargetField } from '../types/import.types';
 
 interface ColumnMappingTableProps {
   mappings: ColumnMapping[];
+  importFormat: ImportFormatType;
   onMappingChange: (originalHeader: string, newTarget: TargetField) => void;
 }
 
-const FIELD_OPTIONS: { value: TargetField; label: string }[] = [
+const BANK_FIELD_OPTIONS: { value: TargetField; label: string }[] = [
   { value: 'date', label: 'Date' },
   { value: 'description', label: 'Transaction Description' },
   { value: 'deposit', label: 'Deposit / Credit' },
@@ -29,16 +30,35 @@ const FIELD_OPTIONS: { value: TargetField; label: string }[] = [
   { value: 'ignore', label: '— Ignore Column —' },
 ];
 
+const FINTRACK_FIELD_OPTIONS: { value: TargetField; label: string }[] = [
+  { value: 'date', label: 'Date' },
+  { value: 'description', label: 'Description' },
+  { value: 'type', label: 'Type (Income / Expense / Transfer)' },
+  { value: 'amount', label: 'Amount' },
+  { value: 'deposit', label: 'Deposit' },
+  { value: 'withdrawal', label: 'Withdrawal' },
+  { value: 'category', label: 'Category' },
+  { value: 'notes', label: 'Notes' },
+  { value: 'running_balance', label: 'Running Balance' },
+  { value: 'currency', label: 'Currency' },
+  { value: 'ignore', label: '— Ignore Column —' },
+];
+
 export const ColumnMappingTable: React.FC<ColumnMappingTableProps> = ({
   mappings,
+  importFormat,
   onMappingChange,
 }) => {
+  const fieldOptions = importFormat === 'fintrack_export'
+    ? FINTRACK_FIELD_OPTIONS
+    : BANK_FIELD_OPTIONS;
+
   return (
     <TableContainer component={Paper} variant="outlined">
       <Table size="small">
         <TableHead>
           <TableRow>
-            <TableCell>Bank File Header</TableCell>
+            <TableCell>File Header</TableCell>
             <TableCell>Mapped FinTrack Field</TableCell>
             <TableCell align="right">Detection Status</TableCell>
           </TableRow>
@@ -58,9 +78,9 @@ export const ColumnMappingTable: React.FC<ColumnMappingTableProps> = ({
                   onChange={(e) =>
                     onMappingChange(m.originalHeader, e.target.value as TargetField)
                   }
-                  sx={{ minWidth: 200 }}
+                  sx={{ minWidth: 240 }}
                 >
-                  {FIELD_OPTIONS.map((opt) => (
+                  {fieldOptions.map((opt) => (
                     <MenuItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </MenuItem>
@@ -72,6 +92,8 @@ export const ColumnMappingTable: React.FC<ColumnMappingTableProps> = ({
                   <Chip label="Exact match" size="small" color="success" variant="outlined" />
                 ) : m.confidence > 0 ? (
                   <Chip label="Probable match" size="small" color="primary" variant="outlined" />
+                ) : m.targetField === 'ignore' ? (
+                  <Chip label="Ignored" size="small" variant="outlined" />
                 ) : (
                   <Chip label="Unmapped" size="small" variant="outlined" />
                 )}
@@ -83,4 +105,3 @@ export const ColumnMappingTable: React.FC<ColumnMappingTableProps> = ({
     </TableContainer>
   );
 };
-
